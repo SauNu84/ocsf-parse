@@ -1,0 +1,3 @@
+{"event_type":"InventoryChange","timestamp":"2026-05-27T14:23:11Z","device":{"hostname":"laptop-42","udid":"00008112-0014645A1188A01E","os":"macOS 14.5","kind":"laptop"},"change_description":"OS upgraded from 14.4 to 14.5"}
+{"event_type":"InventoryChange","timestamp":"2026-05-27T14:24:32Z","device":{"hostname":"laptop-99","udid":"00006112-0024112A338C50A2","os":"macOS 14.5","kind":"laptop"},"change_description":"Firewall enabled"}
+{"event_type":"InventoryChange","timestamp":"2026-05-27T14:25:08Z","device":{"hostname":"ipad-finance","udid":"00008112-9942AC22ABCD0001","os":"iPadOS 17.4","kind":"tablet"},"change_description":"Profile com.company.vpn installed"}

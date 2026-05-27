@@ -1,0 +1,3 @@
+{"message_id":"<abc123@example.com>","received_time":"2026-05-27T14:23:11Z","sender":"alice@example.com","recipients":["bob@example.com","carol@example.com"],"subject":"Q2 results draft","direction":"Outbound","status":"Delivered","size_bytes":48231}
+{"message_id":"<def456@evil.com>","received_time":"2026-05-27T14:23:15Z","sender":"phisher@evil.com","recipients":["bob@example.com"],"subject":"URGENT: Update your password","direction":"Inbound","status":"Quarantined","size_bytes":12834}
+{"message_id":"<ghi789@example.com>","received_time":"2026-05-27T14:23:22Z","sender":"newsletter@partner.com","recipients":["alice@example.com"],"subject":"Weekly digest","direction":"Inbound","status":"Delivered","size_bytes":94120}

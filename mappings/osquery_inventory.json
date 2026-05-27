@@ -1,0 +1,37 @@
+{
+  "source_name": "osquery_inventory",
+  "parser": "json",
+  "routing": {
+    "field": "$.action",
+    "rules": [{ "default": true, "class": "inventory_info" }]
+  },
+  "classes": {
+    "inventory_info": {
+      "mapping": {
+        "metadata.version":             { "const": "1.9.0-dev" },
+        "metadata.product.name":        { "const": "osquery" },
+        "metadata.product.vendor_name": { "const": "osquery" },
+        "metadata.logged_time":         { "time": "$.timestamp", "format": "iso8601" },
+        "time":                         { "time": "$.timestamp", "format": "iso8601" },
+        "category_uid":                 { "const": 5 },
+        "category_name":                { "const": "Discovery" },
+        "class_uid":                    { "const": 5001 },
+        "class_name":                   { "const": "Device Inventory Info" },
+        "activity_id":                  { "const": 2 },
+        "activity_name":                { "const": "Collect" },
+        "type_uid":                     { "expr": "class_uid * 100 + activity_id" },
+        "severity_id":                  { "const": 1 },
+        "severity":                     { "const": "Informational" },
+        "device.hostname":              { "path": "$.host_identifier" },
+        "device.os.name":               { "path": "$.os" },
+        "device.os.type_id":            { "lookup": "$.os_family", "table": {"linux": 200, "windows": 100, "darwin": 300}, "default": 0 },
+        "device.os.type":               { "lookup": "$.os_family", "table": {"linux": "Linux", "windows": "Windows", "darwin": "macOS"}, "default": "Unknown" },
+        "device.hw_info.cpu_type":      { "path": "$.cpu_brand" },
+        "device.hw_info.physical_memory_gb": { "int": "$.memory_gb" },
+        "device.type_id":               { "const": 5 },
+        "device.type":                  { "const": "Server" },
+        "raw_data":                     { "raw": true }
+      }
+    }
+  }
+}

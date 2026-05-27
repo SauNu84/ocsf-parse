@@ -1,0 +1,4 @@
+{"id":"1716818591.1","timestamp":"2026-05-27T14:23:11Z","rule":{"id":"5710","level":5,"description":"Multiple failed SSH login attempts"},"agent":{"name":"web-01","ip":"10.0.1.42"},"data":{"srcip":"203.0.113.50","srcuser":"root"}}
+{"id":"1716818592.7","timestamp":"2026-05-27T14:23:15Z","rule":{"id":"31166","level":10,"description":"SQL injection attempt"},"agent":{"name":"web-02","ip":"10.0.1.99"},"data":{"srcip":"198.51.100.42","srcuser":null,"url":"/api/v1/products?id=1' OR '1'='1"}}
+{"id":"1716818594.3","timestamp":"2026-05-27T14:23:22Z","rule":{"id":"2502","level":13,"description":"Suspicious binary executed in /tmp"},"agent":{"name":"db-01","ip":"10.0.2.55"},"data":{"srcuser":"www-data","program":"/tmp/.cache/payload"}}
+{"id":"1716818601.0","timestamp":"2026-05-27T14:23:35Z","rule":{"id":"40111","level":3,"description":"User session opened"},"agent":{"name":"bastion","ip":"10.0.0.10"},"data":{"srcuser":"alice"}}

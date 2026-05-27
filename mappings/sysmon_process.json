@@ -1,0 +1,39 @@
+{
+  "source_name": "sysmon_process",
+  "parser": "json",
+  "routing": {
+    "field": "$.EventID",
+    "rules": [{ "default": true, "class": "process_activity" }]
+  },
+  "classes": {
+    "process_activity": {
+      "mapping": {
+        "metadata.version":             { "const": "1.9.0-dev" },
+        "metadata.product.name":        { "const": "Sysmon" },
+        "metadata.product.vendor_name": { "const": "Microsoft" },
+        "metadata.logged_time":         { "time": "$.UtcTime", "format": "iso8601" },
+        "time":                         { "time": "$.UtcTime", "format": "iso8601" },
+        "category_uid":                 { "const": 1 },
+        "category_name":                { "const": "System Activity" },
+        "class_uid":                    { "const": 1007 },
+        "class_name":                   { "const": "Process Activity" },
+        "activity_id":                  { "lookup": "$.EventID", "table": {"1": 1, "5": 2}, "default": 0 },
+        "activity_name":                { "lookup": "$.EventID", "table": {"1": "Launch", "5": "Terminate"}, "default": "Unknown" },
+        "type_uid":                     { "expr": "class_uid * 100 + activity_id" },
+        "severity_id":                  { "const": 1 },
+        "severity":                     { "const": "Informational" },
+        "device.hostname":              { "path": "$.HostName" },
+        "device.type_id":               { "const": 5 },
+        "device.type":                  { "const": "Server" },
+        "process.pid":                  { "int": "$.ProcessId" },
+        "process.name":                 { "path": "$.Image" },
+        "process.cmd_line":             { "path": "$.CommandLine" },
+        "process.parent_process.pid":   { "int": "$.ParentProcessId" },
+        "process.parent_process.name":  { "path": "$.ParentImage" },
+        "process.user.name":            { "path": "$.User" },
+        "actor.user.name":              { "path": "$.User" },
+        "raw_data":                     { "raw": true }
+      }
+    }
+  }
+}

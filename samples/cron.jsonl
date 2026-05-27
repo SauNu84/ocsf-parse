@@ -1,0 +1,4 @@
+{"event":"started","timestamp":"2026-05-27T14:00:00Z","host":"web-01","user":"root","job_name":"daily-backup","command":"/usr/local/bin/backup.sh","outcome":"ok"}
+{"event":"started","timestamp":"2026-05-27T14:05:00Z","host":"db-01","user":"postgres","job_name":"vacuum-analyze","command":"/usr/bin/psql -c 'VACUUM ANALYZE'","outcome":"ok"}
+{"event":"started","timestamp":"2026-05-27T14:15:00Z","host":"api-01","user":"app","job_name":"sync-billing","command":"/opt/app/bin/sync.py --hourly","outcome":"fail"}
+{"event":"created","timestamp":"2026-05-27T14:30:00Z","host":"bastion","user":"alice","job_name":"weekly-audit","command":"/opt/scripts/audit.sh","outcome":"ok"}

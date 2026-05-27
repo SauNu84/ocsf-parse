@@ -1,0 +1,4 @@
+{"EventID":1,"UtcTime":"2026-05-27T14:23:11Z","HostName":"web-01","Image":"C:\\Windows\\System32\\cmd.exe","ProcessId":4528,"CommandLine":"cmd.exe /c whoami","ParentImage":"C:\\Users\\alice\\Desktop\\app.exe","ParentProcessId":4500,"User":"WEB-01\\alice"}
+{"EventID":1,"UtcTime":"2026-05-27T14:23:15Z","HostName":"db-01","Image":"/usr/bin/python3","ProcessId":8821,"CommandLine":"python3 /opt/etl/run.py --hourly","ParentImage":"/usr/sbin/cron","ParentProcessId":1024,"User":"db-01\\etl"}
+{"EventID":1,"UtcTime":"2026-05-27T14:23:22Z","HostName":"bastion","Image":"/usr/bin/curl","ProcessId":12044,"CommandLine":"curl -s https://api.example.com/health","ParentImage":"/bin/bash","ParentProcessId":11990,"User":"bastion\\carol"}
+{"EventID":5,"UtcTime":"2026-05-27T14:23:31Z","HostName":"web-01","Image":"C:\\Windows\\System32\\cmd.exe","ProcessId":4528,"ParentImage":"C:\\Users\\alice\\Desktop\\app.exe","ParentProcessId":4500,"User":"WEB-01\\alice"}

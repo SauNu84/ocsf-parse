@@ -1,0 +1,3 @@
+{"action":"snapshot","timestamp":"2026-05-27T14:23:11Z","host_identifier":"web-01","os":"Ubuntu 22.04.4 LTS","os_family":"linux","cpu_brand":"Intel(R) Xeon(R) CPU E5-2686 v4","memory_gb":16}
+{"action":"snapshot","timestamp":"2026-05-27T14:23:11Z","host_identifier":"laptop-42","os":"macOS 14.5 (23F79)","os_family":"darwin","cpu_brand":"Apple M2 Pro","memory_gb":32}
+{"action":"snapshot","timestamp":"2026-05-27T14:23:11Z","host_identifier":"win-bastion","os":"Windows Server 2022","os_family":"windows","cpu_brand":"AMD EPYC 7R32","memory_gb":64}

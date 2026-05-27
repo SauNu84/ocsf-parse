@@ -1,0 +1,5 @@
+{"timestamp":"2026-05-27T14:23:11Z","host":"web-01","action":"read","path":"/etc/shadow","name":"shadow","user":"www-data","uid":"33","pid":"4528","exe":"/usr/bin/cat"}
+{"timestamp":"2026-05-27T14:23:18Z","host":"db-01","action":"write","path":"/var/log/app/server.log","name":"server.log","user":"app","uid":"1001","pid":"2310","exe":"/opt/app/server"}
+{"timestamp":"2026-05-27T14:23:25Z","host":"bastion","action":"create","path":"/tmp/.cache/payload","name":"payload","user":"alice","uid":"1042","pid":"12044","exe":"/bin/bash"}
+{"timestamp":"2026-05-27T14:23:33Z","host":"web-01","action":"delete","path":"/var/www/old-cache.bin","name":"old-cache.bin","user":"root","uid":"0","pid":"5712","exe":"/usr/bin/find"}
+{"timestamp":"2026-05-27T14:23:48Z","host":"db-01","action":"chmod","path":"/etc/ssh/sshd_config","name":"sshd_config","user":"root","uid":"0","pid":"6121","exe":"/usr/bin/chmod"}

@@ -1,0 +1,39 @@
+{
+  "source_name": "cron",
+  "parser": "json",
+  "routing": {
+    "field": "$.event",
+    "rules": [{ "default": true, "class": "scheduled_job_activity" }]
+  },
+  "classes": {
+    "scheduled_job_activity": {
+      "mapping": {
+        "metadata.version":             { "const": "1.9.0-dev" },
+        "metadata.product.name":        { "const": "cron" },
+        "metadata.product.vendor_name": { "const": "GNU" },
+        "metadata.logged_time":         { "time": "$.timestamp", "format": "iso8601" },
+        "time":                         { "time": "$.timestamp", "format": "iso8601" },
+        "category_uid":                 { "const": 1 },
+        "category_name":                { "const": "System Activity" },
+        "class_uid":                    { "const": 1006 },
+        "class_name":                   { "const": "Scheduled Job Activity" },
+        "activity_id":                  { "lookup": "$.event", "table": {"created": 1, "updated": 2, "deleted": 3, "enabled": 4, "disabled": 5, "started": 6}, "default": 0 },
+        "activity_name":                { "lookup": "$.event", "table": {"created": "Create", "updated": "Update", "deleted": "Delete", "enabled": "Enable", "disabled": "Disable", "started": "Start"}, "default": "Unknown" },
+        "type_uid":                     { "expr": "class_uid * 100 + activity_id" },
+        "severity_id":                  { "const": 1 },
+        "severity":                     { "const": "Informational" },
+        "status_id":                    { "lookup": "$.outcome", "table": {"ok": 1, "fail": 2}, "default": 0 },
+        "status":                       { "lookup": "$.outcome", "table": {"ok": "Success", "fail": "Failure"}, "default": "Unknown" },
+        "device.hostname":              { "path": "$.host" },
+        "device.type_id":               { "const": 5 },
+        "device.type":                  { "const": "Server" },
+        "actor.user.name":              { "path": "$.user" },
+        "job.name":                     { "path": "$.job_name" },
+        "job.cmd_line":                 { "path": "$.command" },
+        "job.run_state_id":             { "lookup": "$.event", "table": {"started": 2, "created": 0, "deleted": 0, "enabled": 0, "disabled": 0}, "default": 0 },
+        "job.run_state":                { "lookup": "$.event", "table": {"started": "Started", "created": "Unknown", "deleted": "Unknown"}, "default": "Unknown" },
+        "raw_data":                     { "raw": true }
+      }
+    }
+  }
+}
