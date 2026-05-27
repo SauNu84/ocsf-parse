@@ -1,0 +1,45 @@
+{
+  "source_name": "nginx",
+  "parser": {
+    "regex": "^(?P<remote_addr>\\S+) - (?P<remote_user>\\S+) \\[(?P<time_local>[^\\]]+)\\] \"(?P<method>\\S+) (?P<uri>\\S+) (?P<proto>[^\"]+)\" (?P<status>\\d{3}) (?P<bytes_sent>\\d+) \"(?P<referer>[^\"]*)\" \"(?P<user_agent>[^\"]*)\"$",
+    "groups": ["remote_addr","remote_user","time_local","method","uri","proto","status","bytes_sent","referer","user_agent"]
+  },
+  "routing": {
+    "field": "$.method",
+    "rules": [{ "default": true, "class": "http_activity" }]
+  },
+  "classes": {
+    "http_activity": {
+      "mapping": {
+        "metadata.version":             { "const": "1.9.0-dev" },
+        "metadata.product.name":        { "const": "nginx" },
+        "metadata.product.vendor_name": { "const": "nginx" },
+        "metadata.logged_time":         { "time": "$.time_local", "format": "strptime:%d/%b/%Y:%H:%M:%S %z" },
+        "time":                         { "time": "$.time_local", "format": "strptime:%d/%b/%Y:%H:%M:%S %z" },
+        "category_uid":                 { "const": 4 },
+        "category_name":                { "const": "Network Activity" },
+        "class_uid":                    { "const": 4002 },
+        "class_name":                   { "const": "HTTP Activity" },
+        "activity_id":                  { "lookup": "$.method", "table": {"CONNECT": 1, "DELETE": 2, "GET": 3, "HEAD": 4, "OPTIONS": 5, "POST": 6, "PUT": 7, "TRACE": 8, "PATCH": 9}, "default": 0 },
+        "activity_name":                { "lookup": "$.method", "table": {"CONNECT": "Connect", "DELETE": "Delete", "GET": "Get", "HEAD": "Head", "OPTIONS": "Options", "POST": "Post", "PUT": "Put", "TRACE": "Trace", "PATCH": "Patch"}, "default": "Unknown" },
+        "type_uid":                     { "expr": "class_uid * 100 + activity_id" },
+        "severity_id":                  { "const": 1 },
+        "severity":                     { "const": "Informational" },
+        "status_id":                    { "range": "$.status", "ranges": [[200, 399, 1], [400, 599, 2]], "default": 0 },
+        "status":                       { "range": "$.status", "ranges": [[200, 399, "Success"], [400, 599, "Failure"]], "default": "Unknown" },
+        "status_code":                  { "path": "$.status" },
+        "src_endpoint.ip":              { "path": "$.remote_addr" },
+        "http_request.http_method":     { "path": "$.method" },
+        "http_request.url.path":        { "path": "$.uri" },
+        "http_request.version":         { "path": "$.proto" },
+        "http_request.user_agent":      { "path": "$.user_agent" },
+        "http_request.referrer":        { "path": "$.referer" },
+        "http_response.code":           { "int": "$.status" },
+        "http_response.length":         { "int": "$.bytes_sent" },
+        "http_status":                  { "int": "$.status" },
+        "actor.user.name":              { "path": "$.remote_user" },
+        "raw_data":                     { "raw": true }
+      }
+    }
+  }
+}

@@ -120,6 +120,8 @@ def apply_op(
             dt = datetime.fromisoformat(str(v).replace("Z", "+00:00"))
         elif fmt == "epoch_ms":
             return int(v)
+        elif fmt == "epoch_s":
+            return int(v) * 1000
         elif fmt.startswith("strptime:"):
             dt = datetime.strptime(str(v), fmt.split("strptime:", 1)[1])
         else:

@@ -153,6 +153,11 @@ def test_op_time_epoch_ms_passthrough():
     assert apply_op(op, {"t": "1700000000000"}) == 1700000000000
 
 
+def test_op_time_epoch_s_multiplies_by_1000():
+    op = {"time": "$.t", "format": "epoch_s"}
+    assert apply_op(op, {"t": "1700000000"}) == 1700000000000
+
+
 def test_op_time_strptime():
     op = {"time": "$.t", "format": "strptime:%Y/%m/%d %H:%M:%S"}
     # interpreted as naive local — we just check it's an int (epoch ms)

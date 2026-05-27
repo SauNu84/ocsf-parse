@@ -1,0 +1,45 @@
+{
+  "source_name": "sshd",
+  "parser": {
+    "regex": "^(?P<ts>\\w{3}\\s+\\d+\\s+\\d{2}:\\d{2}:\\d{2}) (?P<host>\\S+) sshd\\[\\d+\\]: (?P<outcome>Accepted|Failed) (?P<auth_method>\\w+) for (?P<user>\\S+) from (?P<src_ip>\\S+) port (?P<src_port>\\d+).*$",
+    "groups": ["ts","host","outcome","auth_method","user","src_ip","src_port"]
+  },
+  "routing": {
+    "field": "$.outcome",
+    "rules": [{ "default": true, "class": "authentication" }]
+  },
+  "classes": {
+    "authentication": {
+      "mapping": {
+        "metadata.version":             { "const": "1.9.0-dev" },
+        "metadata.product.name":        { "const": "OpenSSH" },
+        "metadata.product.vendor_name": { "const": "OpenSSH" },
+        "metadata.logged_time":         { "time": "$.ts", "format": "strptime:%b %d %H:%M:%S" },
+        "time":                         { "time": "$.ts", "format": "strptime:%b %d %H:%M:%S" },
+        "category_uid":                 { "const": 3 },
+        "category_name":                { "const": "Identity & Access Management" },
+        "class_uid":                    { "const": 3002 },
+        "class_name":                   { "const": "Authentication" },
+        "activity_id":                  { "const": 1 },
+        "activity_name":                { "const": "Logon" },
+        "type_uid":                     { "expr": "class_uid * 100 + activity_id" },
+        "severity_id":                  { "lookup": "$.outcome", "table": {"Accepted": 1, "Failed": 3}, "default": 1 },
+        "severity":                     { "lookup": "$.outcome", "table": {"Accepted": "Informational", "Failed": "Medium"}, "default": "Informational" },
+        "status_id":                    { "lookup": "$.outcome", "table": {"Accepted": 1, "Failed": 2}, "default": 0 },
+        "status":                       { "lookup": "$.outcome", "table": {"Accepted": "Success", "Failed": "Failure"}, "default": "Unknown" },
+        "user.name":                    { "path": "$.user" },
+        "actor.user.name":              { "path": "$.user" },
+        "src_endpoint.ip":              { "path": "$.src_ip" },
+        "src_endpoint.port":            { "int": "$.src_port" },
+        "dst_endpoint.hostname":        { "path": "$.host" },
+        "service.name":                 { "const": "sshd" },
+        "auth_protocol":                { "const": "SSH" },
+        "auth_protocol_id":             { "const": 7 },
+        "is_remote":                    { "const": true },
+        "logon_type":                   { "const": "Network" },
+        "logon_type_id":                { "const": 3 },
+        "raw_data":                     { "raw": true }
+      }
+    }
+  }
+}
