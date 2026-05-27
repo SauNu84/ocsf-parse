@@ -1,0 +1,51 @@
+{
+  "source_name": "palo_alto",
+  "parser": {
+    "regex": "^(?P<receive_time_field>\\d+),(?P<receive_time>[^,]+),(?P<serial>[^,]+),(?P<type>[^,]+),(?P<subtype>[^,]+),(?P<src_ip>[^,]+),(?P<dst_ip>[^,]+),(?P<src_zone>[^,]+),(?P<dst_zone>[^,]+),(?P<src_port>\\d+),(?P<dst_port>\\d+),(?P<protocol>[^,]+),(?P<action>[^,]+),(?P<application>[^,]+),(?P<bytes_total>\\d+),(?P<bytes_sent>\\d+),(?P<bytes_received>\\d+)$",
+    "groups": ["receive_time","serial","type","subtype","src_ip","dst_ip","src_zone","dst_zone","src_port","dst_port","protocol","action","application","bytes_total","bytes_sent","bytes_received"]
+  },
+  "routing": {
+    "field": "$.type",
+    "rules": [
+      { "matches": ["TRAFFIC"], "class": "network_activity" },
+      { "default": true,         "class": "network_activity" }
+    ]
+  },
+  "classes": {
+    "network_activity": {
+      "mapping": {
+        "metadata.version":             { "const": "1.9.0-dev" },
+        "metadata.product.name":        { "const": "Palo Alto Networks PAN-OS" },
+        "metadata.product.vendor_name": { "const": "Palo Alto Networks" },
+        "metadata.uid":                 { "path": "$.serial" },
+        "metadata.logged_time":         { "time": "$.receive_time", "format": "strptime:%Y/%m/%d %H:%M:%S" },
+        "time":                         { "time": "$.receive_time", "format": "strptime:%Y/%m/%d %H:%M:%S" },
+        "category_uid":                 { "const": 4 },
+        "category_name":                { "const": "Network Activity" },
+        "class_uid":                    { "const": 4001 },
+        "class_name":                   { "const": "Network Activity" },
+        "activity_id":                  { "lookup": "$.subtype", "table": {"start": 1, "end": 2, "drop": 3, "deny": 5}, "default": 6 },
+        "activity_name":                { "lookup": "$.subtype", "table": {"start": "Open", "end": "Close", "drop": "Reset", "deny": "Refuse"}, "default": "Traffic" },
+        "type_uid":                     { "expr": "class_uid * 100 + activity_id" },
+        "severity_id":                  { "lookup": "$.action", "table": {"allow": 1, "deny": 3, "drop": 3}, "default": 1 },
+        "severity":                     { "lookup": "$.action", "table": {"allow": "Informational", "deny": "Medium", "drop": "Medium"}, "default": "Informational" },
+        "status_id":                    { "lookup": "$.action", "table": {"allow": 1, "deny": 2, "drop": 2}, "default": 0 },
+        "status":                       { "lookup": "$.action", "table": {"allow": "Success", "deny": "Failure", "drop": "Failure"}, "default": "Unknown" },
+        "src_endpoint.ip":              { "path": "$.src_ip" },
+        "src_endpoint.port":            { "int": "$.src_port" },
+        "src_endpoint.zone":            { "path": "$.src_zone" },
+        "dst_endpoint.ip":              { "path": "$.dst_ip" },
+        "dst_endpoint.port":            { "int": "$.dst_port" },
+        "dst_endpoint.zone":            { "path": "$.dst_zone" },
+        "connection_info.protocol_name":{ "path": "$.protocol" },
+        "connection_info.direction":    { "const": "Outbound" },
+        "connection_info.direction_id": { "const": 2 },
+        "app_name":                     { "path": "$.application" },
+        "traffic.bytes":                { "int": "$.bytes_total" },
+        "traffic.bytes_out":            { "int": "$.bytes_sent" },
+        "traffic.bytes_in":             { "int": "$.bytes_received" },
+        "raw_data":                     { "raw": true }
+      }
+    }
+  }
+}

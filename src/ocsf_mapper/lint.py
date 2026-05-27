@@ -1,0 +1,104 @@
+"""CI gate: run every mapping against its pinned sample, validate each event.
+
+Exit code is 0 iff every mapping in ``mappings/`` parses, maps, and validates
+without errors. Run via:
+
+    python -m ocsf_mapper.lint [mappings_folder]
+"""
+
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+from typing import Optional
+
+from ocsf_mapper.apply import apply_stream_with_class
+from ocsf_mapper.registry import list_mappings
+from ocsf_mapper.schema import Schema
+from ocsf_mapper.validate import validate
+
+
+def lint_one(mapping_path: Path, sample_path: Optional[Path], schema: Schema) -> dict:
+    """Lint a single mapping. Returns a dict summarizing the outcome."""
+    result = {
+        "name": mapping_path.stem,
+        "status": "OK",
+        "events": 0,
+        "classes": [],
+        "errors": [],
+    }
+    if sample_path is None:
+        result["status"] = "SKIP"
+        result["errors"].append("no sample file found")
+        return result
+
+    try:
+        config = json.loads(mapping_path.read_text())
+    except json.JSONDecodeError as e:
+        result["status"] = "FAIL"
+        result["errors"].append(f"mapping is not valid JSON: {e}")
+        return result
+
+    lines = sample_path.read_text().splitlines()
+    classes_seen: set[str] = set()
+
+    try:
+        events = list(apply_stream_with_class(config, lines))
+    except Exception as e:
+        result["status"] = "FAIL"
+        result["errors"].append(f"apply crashed: {e!r}")
+        return result
+
+    for i, (ev, cls) in enumerate(events, 1):
+        classes_seen.add(cls)
+        errs = validate(ev, cls, schema=schema)
+        if errs:
+            result["status"] = "FAIL"
+            result["errors"].append(f"event #{i} ({cls}): {'; '.join(errs)}")
+
+    result["events"] = len(events)
+    result["classes"] = sorted(classes_seen)
+    return result
+
+
+def lint(folder: Path | str = "mappings") -> list[dict]:
+    """Lint every mapping in ``folder``. Returns one result dict per mapping."""
+    schema = Schema()
+    out = []
+    for entry in list_mappings(folder):
+        sample = Path(entry["sample"]) if entry["sample"] else None
+        out.append(lint_one(Path(entry["path"]), sample, schema))
+    return out
+
+
+def main(folder: Optional[str] = None) -> int:
+    folder = folder or (sys.argv[1] if len(sys.argv) > 1 else "mappings")
+    results = lint(folder)
+    if not results:
+        print(f"no mappings found in {folder}/")
+        return 0
+
+    width = max(len(r["name"]) for r in results)
+    flag = {"OK": "✓", "FAIL": "✗", "SKIP": "·"}
+    rc = 0
+    print(f"linting {len(results)} mapping(s)\n")
+    for r in results:
+        info = (
+            f"{r['events']} event(s) across {len(r['classes'])} class(es)"
+            if r["status"] == "OK"
+            else (r["errors"][0] if r["errors"] else "")
+        )
+        print(f"  {flag[r['status']]}  {r['name']:<{width}}  {r['status']:<4}  {info}")
+        if r["status"] == "FAIL":
+            rc = 1
+            for line in r["errors"][1:]:
+                print(f"        {line}")
+
+    print()
+    print("OVERALL: PASS" if rc == 0 else "OVERALL: FAIL")
+    return rc
+
+
+if __name__ == "__main__":
+    sys.exit(main())
