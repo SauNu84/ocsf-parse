@@ -60,7 +60,13 @@ def cmd_apply(args: argparse.Namespace) -> int:
         print(f"error: --sink {sink_kind} requires an output path", file=sys.stderr)
         return 2
 
-    with get_sink(sink_kind, sink_path) as sink:
+    sink = get_sink(sink_kind, sink_path)
+    if args.redact:
+        from ocsf_mapper.redact import ALL_KINDS, RedactingSink
+        kinds = ALL_KINDS if args.redact == ["all"] else args.redact
+        sink = RedactingSink(sink, kinds=kinds)
+
+    with sink:
         n = sink.write_many(apply_stream(config, lines))
     # Status goes to stderr so stdout stays clean for piping.
     if sink_kind == "stdout":
@@ -209,6 +215,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Force sink kind (default: infer from output extension). "
              "'security-lake' writes partitioned Parquet to "
              "<output>/<class_uid>/eventDay=YYYYMMDD/*.parquet.",
+    )
+    sp.add_argument(
+        "--redact",
+        nargs="*",
+        metavar="KIND",
+        default=None,
+        help="Redact PII before writing. Pass kinds to opt into a subset "
+             "(email ipv4 ssn phone jwt ccn), or just --redact for all.",
     )
     sp.set_defaults(func=cmd_apply)
 
