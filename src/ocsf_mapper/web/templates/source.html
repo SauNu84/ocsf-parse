@@ -62,6 +62,146 @@
       <button type="submit">Apply mapping</button>
     </form>
     <div id="apply-result"></div>
+
+    <hr class="tail-divider">
+    <div class="tail-section">
+      <p class="hint">Live tail: stream a local file through <code>{{ name }}.json</code> in real time.</p>
+      <div class="tail-controls">
+        <input type="text" id="tail-path" placeholder="/var/log/syslog" class="tail-path-input">
+        <label class="tail-opt"><input type="checkbox" id="tail-from-start"> from start</label>
+        <button id="btn-tail-start" class="btn-primary" onclick="tailStart('{{ name }}')">Start</button>
+        <button id="btn-tail-stop" class="btn-secondary" onclick="tailStop()" disabled>Stop</button>
+        <button id="btn-tail-freeze" class="btn-secondary" onclick="tailToggleFreeze()" disabled>Freeze</button>
+      </div>
+      <div class="tail-status">
+        <span id="tail-status-text">Idle</span>
+        <span id="tail-event-count"></span>
+      </div>
+      <div id="tail-feed" class="tail-feed" style="display:none">
+        <table class="result-table">
+          <thead><tr><th>Raw input</th><th>OCSF event</th><th>Validation</th></tr></thead>
+          <tbody id="tail-tbody"></tbody>
+        </table>
+      </div>
+    </div>
   </div>
 </template>
+
+<script>
+(function () {
+  var _es = null, _frozen = false, _count = 0;
+
+  window.tailStart = function (src) {
+    var pathEl = document.getElementById('tail-path');
+    var path = pathEl ? pathEl.value.trim() : '';
+    if (!path) { alert('Enter a file path.'); return; }
+    tailStop();
+    _frozen = false; _count = 0;
+
+    var tbody = document.getElementById('tail-tbody');
+    if (tbody) tbody.innerHTML = '';
+    var feed = document.getElementById('tail-feed');
+    if (feed) feed.style.display = 'block';
+    _setStatus('Connecting…');
+    _setCount('');
+    _btn('btn-tail-start', true);
+    _btn('btn-tail-stop', false);
+    _btn('btn-tail-freeze', false);
+    var freezeBtn = document.getElementById('btn-tail-freeze');
+    if (freezeBtn) freezeBtn.textContent = 'Freeze';
+
+    var fromStartEl = document.getElementById('tail-from-start');
+    var fromStart = fromStartEl ? fromStartEl.checked : false;
+    var url = '/sources/' + src + '/tail?file=' + encodeURIComponent(path)
+              + '&from_start=' + fromStart;
+    _es = new EventSource(url);
+
+    _es.onopen = function () { _setStatus('Streaming…'); };
+
+    _es.onmessage = function (e) {
+      _count++;
+      _setCount(_count + ' event(s)');
+      if (_frozen) return;
+      var d;
+      try { d = JSON.parse(e.data); } catch (_) { return; }
+      var tb = document.getElementById('tail-tbody');
+      if (!tb) return;
+
+      var tr = document.createElement('tr');
+
+      var tdR = document.createElement('td'); tdR.className = 'cell-raw';
+      var preR = document.createElement('pre'); preR.textContent = d.raw;
+      tdR.appendChild(preR); tr.appendChild(tdR);
+
+      var tdO = document.createElement('td'); tdO.className = 'cell-ocsf';
+      if (d.event) {
+        var pill = document.createElement('span');
+        pill.className = 'class-pill'; pill.textContent = d.class_name;
+        tdO.appendChild(pill);
+        var preO = document.createElement('pre');
+        preO.textContent = JSON.stringify(d.event, null, 2);
+        tdO.appendChild(preO);
+      } else {
+        var em = document.createElement('em');
+        em.className = 'error'; em.textContent = d.error;
+        tdO.appendChild(em);
+      }
+      tr.appendChild(tdO);
+
+      var tdV = document.createElement('td'); tdV.className = 'cell-validation';
+      if (d.validation && d.validation.length) {
+        var ul = document.createElement('ul'); ul.className = 'issues';
+        d.validation.forEach(function (v) {
+          var li = document.createElement('li'); li.textContent = v; ul.appendChild(li);
+        });
+        tdV.appendChild(ul);
+      } else if (d.event) {
+        tdV.innerHTML = '<span class="ok">✓ valid</span>';
+      } else {
+        tdV.textContent = '—';
+      }
+      tr.appendChild(tdV);
+
+      tb.insertBefore(tr, tb.firstChild);
+      var rows = tb.querySelectorAll('tr');
+      if (rows.length > 200) tb.removeChild(rows[rows.length - 1]);
+    };
+
+    _es.onerror = function () {
+      _setStatus('Stream ended.');
+      if (_es) { _es.close(); _es = null; }
+      _btn('btn-tail-start', false);
+      _btn('btn-tail-stop', true);
+      _btn('btn-tail-freeze', true);
+    };
+  };
+
+  window.tailStop = function () {
+    if (_es) { _es.close(); _es = null; }
+    _setStatus('Stopped.');
+    _btn('btn-tail-start', false);
+    _btn('btn-tail-stop', true);
+    _btn('btn-tail-freeze', true);
+    _frozen = false;
+    var fb = document.getElementById('btn-tail-freeze');
+    if (fb) fb.textContent = 'Freeze';
+  };
+
+  window.tailToggleFreeze = function () {
+    _frozen = !_frozen;
+    var fb = document.getElementById('btn-tail-freeze');
+    if (fb) fb.textContent = _frozen ? 'Resume' : 'Freeze';
+  };
+
+  function _setStatus(t) {
+    var el = document.getElementById('tail-status-text'); if (el) el.textContent = t;
+  }
+  function _setCount(t) {
+    var el = document.getElementById('tail-event-count'); if (el) el.textContent = t;
+  }
+  function _btn(id, disabled) {
+    var el = document.getElementById(id); if (el) el.disabled = disabled;
+  }
+}());
+</script>
 {% endblock %}

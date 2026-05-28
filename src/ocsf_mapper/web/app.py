@@ -14,21 +14,25 @@ The app reads from a configurable ``root`` directory containing ``mappings/``,
 
 from __future__ import annotations
 
+import asyncio
+import concurrent.futures
 import json
+import threading
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, Form, HTTPException, Request, UploadFile, File
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Form, HTTPException, Query, Request, UploadFile, File
+from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from ocsf_mapper.apply import apply_stream_with_class
+from ocsf_mapper.apply import apply_stream_with_class, apply_with_class
 from ocsf_mapper.catalog import join_catalog
 from ocsf_mapper.coverage import coverage, summary as coverage_summary
 from ocsf_mapper.lint import lint_one
 from ocsf_mapper.registry import list_mappings
 from ocsf_mapper.schema import Schema
+from ocsf_mapper.stream import tail_file
 from ocsf_mapper.validate import validate
 
 
@@ -283,6 +287,95 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
             },
         )
 
+    @app.get("/sources/{name}/tail")
+    async def source_tail(
+        name: str,
+        request: Request,
+        file: str = Query(..., description="Absolute path to log file on this machine"),
+        from_start: bool = Query(False),
+        max_events: int = Query(0, ge=0, description="Stop after N events (0 = stream indefinitely)"),
+    ) -> StreamingResponse:
+        """SSE stream: tail a local log file through the named mapping in real time."""
+        cfg = _mapping_or_404(name)
+        file_path = Path(file).resolve()
+        if not file_path.exists() or not file_path.is_file():
+            raise HTTPException(status_code=404, detail=f"file not found: {file}")
+
+        stop = threading.Event()
+        queue: asyncio.Queue = asyncio.Queue()
+        loop = asyncio.get_running_loop()
+
+        def _tail_worker() -> None:
+            try:
+                for raw in tail_file(file_path, poll_interval=0.3,
+                                     from_start=from_start, stop=stop):
+                    if stop.is_set():
+                        break
+                    line = raw.rstrip("\n")
+                    if not line.strip():
+                        continue
+                    try:
+                        pair = apply_with_class(cfg, line)
+                    except Exception as exc:
+                        item: dict = {"raw": line, "error": f"parse error: {exc!r}"}
+                    else:
+                        if pair is None:
+                            item = {"raw": line, "error": "no match for parser/routing"}
+                        else:
+                            event, cls = pair
+                            errs = validate(event, cls, schema=schema)
+                            item = {
+                                "raw": line, "event": event,
+                                "class_name": cls, "validation": errs,
+                            }
+                    if not stop.is_set():
+                        asyncio.run_coroutine_threadsafe(
+                            queue.put(item), loop
+                        ).result(timeout=5)
+            except Exception:
+                pass
+            finally:
+                try:
+                    asyncio.run_coroutine_threadsafe(
+                        queue.put(None), loop
+                    ).result(timeout=2)
+                except Exception:
+                    pass
+
+        executor = concurrent.futures.ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix="ocsf-tail"
+        )
+        executor.submit(_tail_worker)
+
+        async def event_stream():
+            emitted = 0
+            try:
+                while True:
+                    try:
+                        item = await asyncio.wait_for(queue.get(), timeout=1.0)
+                    except asyncio.TimeoutError:
+                        yield ": heartbeat\n\n"
+                        continue
+                    if item is None:
+                        break
+                    yield f"data: {json.dumps(item)}\n\n"
+                    emitted += 1
+                    if max_events > 0 and emitted >= max_events:
+                        break
+            finally:
+                stop.set()
+                executor.shutdown(wait=False)
+
+        return StreamingResponse(
+            event_stream(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
+                "Connection": "keep-alive",
+            },
+        )
+
     @app.post("/sources/{name}/apply", response_class=HTMLResponse)
     async def source_apply(
         name: str,
@@ -297,7 +390,6 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
             if not line.strip():
                 continue
             try:
-                from ocsf_mapper.apply import apply_with_class
                 pair = apply_with_class(cfg, line)
             except Exception as e:
                 results.append({"raw": line, "error": f"parse error: {e!r}"})
@@ -356,7 +448,6 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
             if not line.strip():
                 continue
             try:
-                from ocsf_mapper.apply import apply_with_class
                 pair = apply_with_class(cfg, line)
             except Exception as e:
                 events.append({"index": i, "status": "fail",

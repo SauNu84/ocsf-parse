@@ -297,6 +297,54 @@ def test_wizard_save_rejects_bad_json(wizard_env):
     assert "invalid JSON" in r.text
 
 
+# ---------------------------------------------------------------------------
+# Step 5: Live-tail SSE endpoint
+# ---------------------------------------------------------------------------
+
+
+def test_tail_missing_file_returns_404(client):
+    r = client.get("/sources/okta/tail", params={"file": "/does/not/exist.log"})
+    assert r.status_code == 404
+
+
+def test_tail_unknown_source_returns_404(client, samples_dir):
+    r = client.get(
+        "/sources/no_such_source/tail",
+        params={"file": str(samples_dir / "okta.jsonl")},
+    )
+    assert r.status_code == 404
+
+
+def test_tail_streams_events_from_existing_file(client, samples_dir):
+    import json as _json
+
+    sample_path = str(samples_dir / "okta.jsonl")
+    r = client.get(
+        "/sources/okta/tail",
+        params={"file": sample_path, "from_start": "true", "max_events": "3"},
+    )
+    assert r.status_code == 200
+    assert "text/event-stream" in r.headers["content-type"]
+
+    events = [
+        _json.loads(line[6:])
+        for line in r.text.splitlines()
+        if line.startswith("data: ")
+    ]
+    assert len(events) == 3
+    first = events[0]
+    assert "raw" in first
+    assert "event" in first or "error" in first
+
+
+def test_tail_output_tab_template_present(client):
+    r = client.get("/sources/okta")
+    assert r.status_code == 200
+    assert "tail-section" in r.text
+    assert "tail-controls" in r.text
+    assert "tailStart" in r.text
+
+
 def test_wizard_draft_friendly_error_without_provider(tmp_path, monkeypatch):
     monkeypatch.delenv("OCSF_LLM_PROVIDER", raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
