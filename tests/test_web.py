@@ -188,3 +188,30 @@ def test_validation_tab_missing_sample(tmp_path):
     r = iso_client.get("/sources/orphan/validation")
     assert r.status_code == 200
     assert "No pinned sample" in r.text
+
+
+# ---------------------------------------------------------------------------
+# Step 3: Coverage bars on home + dedicated Coverage tab
+# ---------------------------------------------------------------------------
+
+
+def test_homepage_includes_coverage_bars(client):
+    import re
+    r = client.get("/")
+    assert r.status_code == 200
+    assert "card-coverage" in r.text
+    assert "bar-req" in r.text
+    assert re.search(r"\d+%</span>", r.text)
+
+
+def test_coverage_tab_renders(client):
+    r = client.get("/sources/cloudtrail/coverage")
+    assert r.status_code == 200
+    assert "coverage-overall" in r.text
+    assert "authentication" in r.text and "api_activity" in r.text
+    assert "Missing recommended" in r.text
+
+
+def test_coverage_tab_404_for_unknown(client):
+    r = client.get("/sources/totally_made_up/coverage")
+    assert r.status_code == 404

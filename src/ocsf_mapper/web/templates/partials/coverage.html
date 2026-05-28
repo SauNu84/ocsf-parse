@@ -1,0 +1,47 @@
+<div class="coverage-tab">
+  <p class="coverage-overall">
+    Overall: <strong>{{ "%.0f"|format(summary.score * 100) }}%</strong>
+    — populated
+    {{ summary.required }}/{{ summary.required_total }} required,
+    {{ summary.recommended }}/{{ summary.recommended_total }} recommended
+    <span class="hint">(required-fields counted 2× in the score)</span>
+  </p>
+
+  {% for cls_name, c in coverage.items() %}
+  <details class="coverage-class" open>
+    <summary>
+      <span class="class-pill">{{ cls_name }}</span>
+      <span class="bar-wrap">
+        {% set req_pct = (c.required / c.required_total * 100) if c.required_total else 100 %}
+        {% set rec_pct = (c.recommended / c.recommended_total * 100) if c.recommended_total else 0 %}
+        <span class="bar"
+              title="required: {{ c.required }}/{{ c.required_total }} • recommended: {{ c.recommended }}/{{ c.recommended_total }}">
+          <span class="bar-req" style="width: {{ req_pct }}%"></span>
+          <span class="bar-rec" style="width: {{ rec_pct }}%"></span>
+        </span>
+      </span>
+      <span class="counts">
+        req {{ c.required }}/{{ c.required_total }} ·
+        rec {{ c.recommended }}/{{ c.recommended_total }}
+      </span>
+    </summary>
+    <div class="missing-lists">
+      {% if c.missing_required %}
+      <div class="missing missing-required">
+        <h4>Missing required ({{ c.missing_required|length }})</h4>
+        <ul>{% for a in c.missing_required %}<li>{{ a }}</li>{% endfor %}</ul>
+      </div>
+      {% endif %}
+      {% if c.missing_recommended %}
+      <div class="missing missing-recommended">
+        <h4>Missing recommended ({{ c.missing_recommended|length }})</h4>
+        <ul>{% for a in c.missing_recommended %}<li>{{ a }}</li>{% endfor %}</ul>
+      </div>
+      {% endif %}
+      {% if not c.missing_required and not c.missing_recommended %}
+      <p class="hint">✓ All required and recommended attributes populated.</p>
+      {% endif %}
+    </div>
+  </details>
+  {% endfor %}
+</div>

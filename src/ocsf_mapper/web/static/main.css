@@ -318,3 +318,91 @@ footer {
 .validation-tab .row-ok td { background: rgba(31, 136, 61, 0.03); }
 .validation-tab .row-fail td { background: rgba(207, 34, 46, 0.05); }
 .validation-tab .issues { margin: 0; padding-left: 18px; color: var(--fail); font-family: var(--mono); font-size: 11px; }
+
+/* ---- coverage (step 3) -------------------------------------------- */
+
+.card-coverage {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 4px;
+}
+.card-coverage .bar {
+  position: relative;
+  flex: 1;
+  height: 6px;
+  background: #eef0f3;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.card-coverage .bar-req {
+  position: absolute;
+  top: 0; left: 0;
+  height: 100%;
+  background: var(--ok);
+}
+.card-coverage .bar-rec {
+  position: absolute;
+  top: 0; left: 0;
+  height: 100%;
+  background: rgba(31, 136, 61, 0.35);
+}
+.card-coverage .bar-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--fg-muted);
+}
+
+.coverage-overall {
+  background: #f5f7f9;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+.coverage-overall .hint { color: var(--fg-muted); font-size: 11px; margin-left: 6px; }
+
+.coverage-class {
+  margin-top: 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.coverage-class summary {
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  list-style: none;
+}
+.coverage-class summary::-webkit-details-marker { display: none; }
+.coverage-class .bar-wrap { flex: 1; }
+.coverage-class .bar {
+  position: relative;
+  display: block;
+  height: 8px;
+  background: #eef0f3;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.coverage-class .bar-req,
+.coverage-class .bar-rec {
+  position: absolute;
+  top: 0; left: 0;
+  height: 100%;
+}
+.coverage-class .bar-req { background: var(--ok); z-index: 2; }
+.coverage-class .bar-rec { background: rgba(31, 136, 61, 0.30); z-index: 1; }
+.coverage-class .counts { font-family: var(--mono); font-size: 11px; color: var(--fg-muted); }
+
+.missing-lists {
+  display: flex;
+  gap: 16px;
+  padding: 8px 14px 12px;
+  border-top: 1px solid var(--border);
+}
+.missing-lists .missing { flex: 1; font-size: 12px; }
+.missing-lists h4 { margin: 0 0 4px; font-size: 12px; font-weight: 600; }
+.missing-required h4 { color: var(--fail); }
+.missing-recommended h4 { color: var(--warn); }
+.missing-lists ul { margin: 0; padding-left: 18px; font-family: var(--mono); font-size: 11px; }

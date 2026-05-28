@@ -25,6 +25,7 @@ from fastapi.templating import Jinja2Templates
 
 from ocsf_mapper.apply import apply_stream_with_class
 from ocsf_mapper.catalog import join_catalog
+from ocsf_mapper.coverage import coverage, summary as coverage_summary
 from ocsf_mapper.lint import lint_one
 from ocsf_mapper.registry import list_mappings
 from ocsf_mapper.schema import Schema
@@ -59,16 +60,19 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
         # Full lint runs on the CLI; this is just for the card status pill.
         lint_status = "unknown"
         event_count = 0
-        if sample_path:
+        cov_summary = None
+        if reg.get("path"):
             try:
                 cfg = json.loads(Path(reg["path"]).read_text())
-                lines = Path(sample_path).read_text().splitlines()[:50]
-                events = list(apply_stream_with_class(cfg, lines))
-                event_count = len(events)
-                if events:
-                    first_event, cls = events[0]
-                    errs = validate(first_event, cls, schema=schema)
-                    lint_status = "ok" if not errs else "fail"
+                cov_summary = coverage_summary(coverage(cfg, schema))
+                if sample_path:
+                    lines = Path(sample_path).read_text().splitlines()[:50]
+                    events = list(apply_stream_with_class(cfg, lines))
+                    event_count = len(events)
+                    if events:
+                        first_event, cls = events[0]
+                        errs = validate(first_event, cls, schema=schema)
+                        lint_status = "ok" if not errs else "fail"
             except Exception:
                 lint_status = "fail"
         return {
@@ -77,6 +81,7 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
             "event_count": event_count,
             "has_mapping": entry["status"] == "mapped",
             "sample_path": sample_path,
+            "coverage": cov_summary,
         }
 
     def _sorted_catalog_rows() -> list[dict]:
@@ -180,6 +185,20 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
                 "ok": sum(1 for r in results if not r.get("error") and not r.get("validation")),
                 "warn": sum(1 for r in results if r.get("validation")),
                 "fail": sum(1 for r in results if r.get("error")),
+            },
+        )
+
+    @app.get("/sources/{name}/coverage", response_class=HTMLResponse)
+    def source_coverage(name: str, request: Request) -> HTMLResponse:
+        cfg = _mapping_or_404(name)
+        cov = coverage(cfg, schema)
+        return templates.TemplateResponse(
+            request,
+            "partials/coverage.html",
+            {
+                "name": name,
+                "coverage": cov,
+                "summary": coverage_summary(cov),
             },
         )
 

@@ -39,6 +39,12 @@
           hx-on::after-request="document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));this.classList.add('active')">
     Validation
   </button>
+  <button class="tab"
+          hx-get="/sources/{{ name }}/coverage"
+          hx-target="#tabpanel"
+          hx-on::after-request="document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));this.classList.add('active')">
+    Coverage
+  </button>
 </nav>
 
 <section id="tabpanel" class="tabpanel"

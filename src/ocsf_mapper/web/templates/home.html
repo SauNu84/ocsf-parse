@@ -29,6 +29,17 @@
       </div>
       <div class="desc">{{ r.description }}</div>
     </div>
+    {% if r.coverage %}
+    <div class="card-coverage">
+      <span class="bar" title="required: {{ r.coverage.required }}/{{ r.coverage.required_total }} • recommended: {{ r.coverage.recommended }}/{{ r.coverage.recommended_total }}">
+        {% set req_pct = (r.coverage.required / r.coverage.required_total * 100) if r.coverage.required_total else 100 %}
+        {% set rec_pct = (r.coverage.recommended / r.coverage.recommended_total * 100) if r.coverage.recommended_total else 0 %}
+        <span class="bar-req" style="width: {{ req_pct }}%"></span>
+        <span class="bar-rec" style="width: {{ rec_pct }}%"></span>
+      </span>
+      <span class="bar-label">{{ "%.0f"|format(r.coverage.score * 100) }}%</span>
+    </div>
+    {% endif %}
     <div class="card-foot">
       <span class="status status-{{ r.lint_status }}">
         {% if r.lint_status == "ok" %}✓{% elif r.lint_status == "fail" %}✗{% else %}·{% endif %}
