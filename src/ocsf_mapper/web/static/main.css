@@ -451,3 +451,66 @@ footer {
 .wizard-actions { margin-top: 12px; }
 .wizard-draft #monaco-host { height: 480px; }
 .save-error pre { margin: 6px 0 0; white-space: pre-wrap; font-size: 11px; }
+
+/* ---- live tail ---------------------------------------------------- */
+
+.tail-divider { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+
+.tail-section .hint { color: var(--fg-muted); font-size: 13px; margin: 0 0 8px; }
+
+.tail-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 10px;
+  background: #f5f7f9;
+  border: 1px dashed var(--border);
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.tail-path-input {
+  flex: 1;
+  min-width: 200px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.tail-opt {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+
+.btn-secondary {
+  background: var(--bg-card);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  padding: 6px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+}
+.btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-secondary:hover:not(:disabled) { background: #f5f7f9; }
+
+.tail-status {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--fg-muted);
+  margin-bottom: 8px;
+}
+
+.tail-feed {
+  max-height: 480px;
+  overflow: auto;
+}
