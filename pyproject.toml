@@ -33,6 +33,9 @@ dev = [
     "pytest-cov>=5",
 ]
 
+[project.scripts]
+ocsf-mapper = "ocsf_mapper.cli:main"
+
 [project.urls]
 Homepage = "https://github.com/ocsf/ocsf-parse"
 Issues   = "https://github.com/ocsf/ocsf-parse/issues"
