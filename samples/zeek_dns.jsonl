@@ -1,0 +1,4 @@
+{"ts":1716818591,"uid":"CzwUik2yYS","id":{"orig_h":"10.0.1.42","orig_p":54322,"resp_h":"8.8.8.8","resp_p":53},"proto":"udp","query":"example.com","qtype_name":"A","rcode_name":"NOERROR","answers":["93.184.216.34"]}
+{"ts":1716818602,"uid":"DfWmaq3lkA","id":{"orig_h":"10.0.2.55","orig_p":52211,"resp_h":"1.1.1.1","resp_p":53},"proto":"udp","query":"malicious.evil.invalid","qtype_name":"A","rcode_name":"NXDOMAIN","answers":[]}
+{"ts":1716818615,"uid":"EgXabc4pV3","id":{"orig_h":"10.0.3.15","orig_p":41203,"resp_h":"8.8.4.4","resp_p":53},"proto":"udp","query":"github.com","qtype_name":"AAAA","rcode_name":"NOERROR","answers":["2606:50c0:8000::153","2606:50c0:8001::153"]}
+{"ts":1716818628,"uid":"FhYbcd5qV4","id":{"orig_h":"10.0.1.99","orig_p":38221,"resp_h":"192.168.1.1","resp_p":53},"proto":"tcp","query":"_xmpp-server._tcp.example.com","qtype_name":"SRV","rcode_name":"SERVFAIL","answers":[]}

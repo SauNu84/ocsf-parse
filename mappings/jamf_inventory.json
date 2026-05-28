@@ -1,34 +1,101 @@
 {
   "source_name": "jamf_inventory",
+  "display_name": "Jamf Pro Inventory Change",
+  "vendor": "Jamf",
+  "priority": "medium",
+  "description": "Jamf MDM device inventory change events.",
   "parser": "json",
   "routing": {
     "field": "$.event_type",
-    "rules": [{ "default": true, "class": "device_config_state_change" }]
+    "rules": [
+      {
+        "default": true,
+        "class": "device_config_state_change"
+      }
+    ]
   },
   "classes": {
     "device_config_state_change": {
       "mapping": {
-        "metadata.version":             { "const": "1.9.0-dev" },
-        "metadata.product.name":        { "const": "Jamf Pro" },
-        "metadata.product.vendor_name": { "const": "Jamf" },
-        "metadata.logged_time":         { "time": "$.timestamp", "format": "iso8601" },
-        "time":                         { "time": "$.timestamp", "format": "iso8601" },
-        "category_uid":                 { "const": 5 },
-        "category_name":                { "const": "Discovery" },
-        "class_uid":                    { "const": 5019 },
-        "class_name":                   { "const": "Device Config State Change" },
-        "activity_id":                  { "const": 1 },
-        "activity_name":                { "const": "Log" },
-        "type_uid":                     { "expr": "class_uid * 100 + activity_id" },
-        "severity_id":                  { "const": 1 },
-        "severity":                     { "const": "Informational" },
-        "device.hostname":              { "path": "$.device.hostname" },
-        "device.uid":                   { "path": "$.device.udid" },
-        "device.os.name":               { "path": "$.device.os" },
-        "device.type_id":               { "lookup": "$.device.kind", "table": {"laptop": 6, "desktop": 5, "phone": 4, "tablet": 3}, "default": 0 },
-        "device.type":                  { "lookup": "$.device.kind", "table": {"laptop": "Laptop", "desktop": "Desktop", "phone": "Mobile", "tablet": "Tablet"}, "default": "Unknown" },
-        "message":                      { "path": "$.change_description" },
-        "raw_data":                     { "raw": true }
+        "metadata.version": {
+          "const": "1.9.0-dev"
+        },
+        "metadata.product.name": {
+          "const": "Jamf Pro"
+        },
+        "metadata.product.vendor_name": {
+          "const": "Jamf"
+        },
+        "metadata.logged_time": {
+          "time": "$.timestamp",
+          "format": "iso8601"
+        },
+        "time": {
+          "time": "$.timestamp",
+          "format": "iso8601"
+        },
+        "category_uid": {
+          "const": 5
+        },
+        "category_name": {
+          "const": "Discovery"
+        },
+        "class_uid": {
+          "const": 5019
+        },
+        "class_name": {
+          "const": "Device Config State Change"
+        },
+        "activity_id": {
+          "const": 1
+        },
+        "activity_name": {
+          "const": "Log"
+        },
+        "type_uid": {
+          "expr": "class_uid * 100 + activity_id"
+        },
+        "severity_id": {
+          "const": 1
+        },
+        "severity": {
+          "const": "Informational"
+        },
+        "device.hostname": {
+          "path": "$.device.hostname"
+        },
+        "device.uid": {
+          "path": "$.device.udid"
+        },
+        "device.os.name": {
+          "path": "$.device.os"
+        },
+        "device.type_id": {
+          "lookup": "$.device.kind",
+          "table": {
+            "laptop": 6,
+            "desktop": 5,
+            "phone": 4,
+            "tablet": 3
+          },
+          "default": 0
+        },
+        "device.type": {
+          "lookup": "$.device.kind",
+          "table": {
+            "laptop": "Laptop",
+            "desktop": "Desktop",
+            "phone": "Mobile",
+            "tablet": "Tablet"
+          },
+          "default": "Unknown"
+        },
+        "message": {
+          "path": "$.change_description"
+        },
+        "raw_data": {
+          "raw": true
+        }
       }
     }
   }

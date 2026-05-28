@@ -1,0 +1,245 @@
+{
+  "version": "1.0",
+  "ocsf_schema_version": "1.9.0-dev",
+  "description": "Master data: log-source-to-OCSF mapping with vendor, priority, and use-case context. Each entry corresponds to a file in mappings/ (and a paired sample in samples/).",
+  "priority_legend": {
+    "critical": "Must-have for any SOC. Source of high-fidelity authentication / detection signals.",
+    "high":     "Important. Routinely queried during investigation.",
+    "medium":   "Useful but not always required. Often vendor-specific.",
+    "low":      "Edge-case or supplementary."
+  },
+  "entries": [
+    {
+      "source": "windows_event_log",
+      "display_name": "Windows Event Log",
+      "vendor": "Microsoft",
+      "ocsf": { "category_uid": 3, "category_name": "Identity & Access Management", "class_uid": 3002, "class_name": "Authentication" },
+      "priority": "critical",
+      "description": "Windows Security audit log: logon (4624), failed logon (4625), logoff (4634)."
+    },
+    {
+      "source": "sysmon_process",
+      "display_name": "Sysmon",
+      "vendor": "Microsoft",
+      "ocsf": { "category_uid": 1, "category_name": "System Activity", "class_uid": 1007, "class_name": "Process Activity" },
+      "priority": "critical",
+      "description": "Sysmon Event ID 1 (process creation) and 5 (process termination)."
+    },
+    {
+      "source": "auditd_file",
+      "display_name": "Linux auditd (file)",
+      "vendor": "Linux Audit",
+      "ocsf": { "category_uid": 1, "category_name": "System Activity", "class_uid": 1001, "class_name": "File System Activity" },
+      "priority": "critical",
+      "description": "Linux auditd file syscalls: open/read/write/unlink/chmod/chown."
+    },
+    {
+      "source": "palo_alto",
+      "display_name": "Palo Alto NGFW",
+      "vendor": "Palo Alto Networks",
+      "ocsf": { "category_uid": 4, "category_name": "Network Activity", "class_uid": 4001, "class_name": "Network Activity" },
+      "priority": "critical",
+      "description": "Palo Alto PAN-OS TRAFFIC log in CSV format."
+    },
+    {
+      "source": "cloudtrail",
+      "display_name": "AWS CloudTrail",
+      "vendor": "AWS",
+      "ocsf": { "category_uid": 6, "category_name": "Application Activity", "class_uid": 6003, "class_name": "API Activity" },
+      "priority": "critical",
+      "description": "AWS management-plane API calls. Routes ConsoleLogin to Authentication (3002)."
+    },
+    {
+      "source": "azure_ad_signin",
+      "display_name": "Azure AD Sign-in",
+      "vendor": "Microsoft",
+      "ocsf": { "category_uid": 3, "category_name": "Identity & Access Management", "class_uid": 3002, "class_name": "Authentication" },
+      "priority": "critical",
+      "description": "Azure AD / Entra ID interactive and non-interactive sign-in events."
+    },
+    {
+      "source": "crowdstrike_falcon",
+      "display_name": "CrowdStrike Falcon",
+      "vendor": "CrowdStrike",
+      "ocsf": { "category_uid": 2, "category_name": "Findings", "class_uid": 2004, "class_name": "Detection Finding" },
+      "priority": "critical",
+      "description": "Falcon Streaming API detection events (DetectName, Tactic, Technique)."
+    },
+    {
+      "source": "splunk_es_alert",
+      "display_name": "Splunk ES Alert",
+      "vendor": "Splunk",
+      "ocsf": { "category_uid": 2, "category_name": "Findings", "class_uid": 2001, "class_name": "Security Finding" },
+      "priority": "critical",
+      "description": "Splunk Enterprise Security notable events from correlation searches."
+    },
+    {
+      "source": "zeek_dns",
+      "display_name": "Zeek DNS",
+      "vendor": "Zeek (OSS)",
+      "ocsf": { "category_uid": 4, "category_name": "Network Activity", "class_uid": 4003, "class_name": "DNS Activity" },
+      "priority": "high",
+      "description": "Zeek dns.log JSON: query, answers, qtype, rcode."
+    },
+    {
+      "source": "suricata_alert",
+      "display_name": "Suricata IDS",
+      "vendor": "OISF (OSS)",
+      "ocsf": { "category_uid": 2, "category_name": "Findings", "class_uid": 2004, "class_name": "Detection Finding" },
+      "priority": "high",
+      "description": "Suricata EVE JSON alert events with signature_id, category, severity."
+    },
+    {
+      "source": "okta",
+      "display_name": "Okta",
+      "vendor": "Okta",
+      "ocsf": { "category_uid": 3, "category_name": "Identity & Access Management", "class_uid": 3002, "class_name": "Authentication" },
+      "priority": "high",
+      "description": "Okta System Log: user.session.start and application.user_membership.add/remove."
+    },
+    {
+      "source": "google_workspace",
+      "display_name": "Google Workspace Audit",
+      "vendor": "Google",
+      "ocsf": { "category_uid": 4, "category_name": "Network Activity", "class_uid": 4009, "class_name": "Email Activity" },
+      "priority": "high",
+      "description": "Google Workspace audit (Gmail send/receive events)."
+    },
+    {
+      "source": "m365_email",
+      "display_name": "Microsoft 365 / Exchange Online",
+      "vendor": "Microsoft",
+      "ocsf": { "category_uid": 4, "category_name": "Network Activity", "class_uid": 4009, "class_name": "Email Activity" },
+      "priority": "high",
+      "description": "Exchange Online message trace: send, receive, quarantine, block."
+    },
+    {
+      "source": "qualys_scan",
+      "display_name": "Qualys / Tenable Scan",
+      "vendor": "Qualys / Tenable",
+      "ocsf": { "category_uid": 2, "category_name": "Findings", "class_uid": 2002, "class_name": "Vulnerability Finding" },
+      "priority": "high",
+      "description": "Vulnerability scanner findings: CVE, QID, severity, asset."
+    },
+    {
+      "source": "prisma_cloud",
+      "display_name": "Prisma Cloud",
+      "vendor": "Palo Alto Networks",
+      "ocsf": { "category_uid": 5, "category_name": "Discovery", "class_uid": 5002, "class_name": "Device Config State" },
+      "priority": "medium",
+      "description": "Prisma Cloud CSPM policy violations on cloud resources."
+    },
+    {
+      "source": "waf_logs",
+      "display_name": "WAF (AWS / Cloudflare / generic)",
+      "vendor": "Various",
+      "ocsf": { "category_uid": 4, "category_name": "Network Activity", "class_uid": 4002, "class_name": "HTTP Activity" },
+      "priority": "medium",
+      "description": "Web Application Firewall logs (AWS WAF format). Distinct from full HTTP access logs by carrying ACL decisions."
+    },
+    {
+      "source": "dlp_events",
+      "display_name": "DLP (Symantec / Forcepoint)",
+      "vendor": "Various",
+      "ocsf": { "category_uid": 1, "category_name": "System Activity", "class_uid": 1001, "class_name": "File System Activity" },
+      "priority": "medium",
+      "description": "Data-loss-prevention file movement events with policy + action_taken."
+    },
+    {
+      "source": "ueba_alert",
+      "display_name": "UEBA / EDR Behavioral",
+      "vendor": "Various",
+      "ocsf": { "category_uid": 2, "category_name": "Findings", "class_uid": 2004, "class_name": "Detection Finding" },
+      "priority": "medium",
+      "description": "Behavior-based detections (impossible travel, anomalous spend, etc). Often map to multiple classes in reality; we route the canonical alert into Detection Finding."
+    },
+    {
+      "source": "nginx",
+      "display_name": "nginx access log",
+      "vendor": "nginx",
+      "ocsf": { "category_uid": 4, "category_name": "Network Activity", "class_uid": 4002, "class_name": "HTTP Activity" },
+      "priority": "high",
+      "description": "nginx combined log format (regex-parsed)."
+    },
+    {
+      "source": "apache",
+      "display_name": "Apache access log",
+      "vendor": "Apache",
+      "ocsf": { "category_uid": 4, "category_name": "Network Activity", "class_uid": 4002, "class_name": "HTTP Activity" },
+      "priority": "high",
+      "description": "Apache HTTP Server combined log format."
+    },
+    {
+      "source": "cloudflare",
+      "display_name": "Cloudflare Logpush",
+      "vendor": "Cloudflare",
+      "ocsf": { "category_uid": 4, "category_name": "Network Activity", "class_uid": 4002, "class_name": "HTTP Activity" },
+      "priority": "high",
+      "description": "Cloudflare HTTP request logs from Logpush, with WAF action."
+    },
+    {
+      "source": "sshd",
+      "display_name": "Linux OpenSSH",
+      "vendor": "OpenSSH",
+      "ocsf": { "category_uid": 3, "category_name": "Identity & Access Management", "class_uid": 3002, "class_name": "Authentication" },
+      "priority": "high",
+      "description": "Syslog lines from sshd: Accepted / Failed authentication."
+    },
+    {
+      "source": "vpc_flow_logs",
+      "display_name": "AWS VPC Flow Logs",
+      "vendor": "AWS",
+      "ocsf": { "category_uid": 4, "category_name": "Network Activity", "class_uid": 4001, "class_name": "Network Activity" },
+      "priority": "high",
+      "description": "AWS VPC v2 flow record (space-separated fields)."
+    },
+    {
+      "source": "wazuh",
+      "display_name": "Wazuh HIDS",
+      "vendor": "Wazuh",
+      "ocsf": { "category_uid": 2, "category_name": "Findings", "class_uid": 2001, "class_name": "Security Finding" },
+      "priority": "high",
+      "description": "Wazuh agent alerts with rule.id, rule.level, agent context."
+    },
+    {
+      "source": "osquery_inventory",
+      "display_name": "osquery inventory snapshot",
+      "vendor": "osquery",
+      "ocsf": { "category_uid": 5, "category_name": "Discovery", "class_uid": 5001, "class_name": "Device Inventory Info" },
+      "priority": "medium",
+      "description": "osquery snapshot table for system_info-style host inventory."
+    },
+    {
+      "source": "jamf_inventory",
+      "display_name": "Jamf Pro Inventory Change",
+      "vendor": "Jamf",
+      "ocsf": { "category_uid": 5, "category_name": "Discovery", "class_uid": 5019, "class_name": "Device Config State Change" },
+      "priority": "medium",
+      "description": "Jamf MDM device inventory change events."
+    },
+    {
+      "source": "aws_config",
+      "display_name": "AWS Config",
+      "vendor": "AWS",
+      "ocsf": { "category_uid": 5, "category_name": "Discovery", "class_uid": 5002, "class_name": "Device Config State" },
+      "priority": "high",
+      "description": "AWS Config configuration item snapshots for cloud resources."
+    },
+    {
+      "source": "cron",
+      "display_name": "Linux cron",
+      "vendor": "GNU",
+      "ocsf": { "category_uid": 1, "category_name": "System Activity", "class_uid": 1006, "class_name": "Scheduled Job Activity" },
+      "priority": "low",
+      "description": "Cron job lifecycle events: created, started, deleted."
+    },
+    {
+      "source": "falco_kernel",
+      "display_name": "Falco kernel events",
+      "vendor": "Sysdig",
+      "ocsf": { "category_uid": 1, "category_name": "System Activity", "class_uid": 1003, "class_name": "Kernel Activity" },
+      "priority": "high",
+      "description": "Falco runtime detections for kernel module load/unload events."
+    }
+  ]
+}

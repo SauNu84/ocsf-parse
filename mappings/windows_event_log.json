@@ -1,0 +1,45 @@
+{
+  "source_name": "windows_event_log",
+  "display_name": "Windows Event Log",
+  "vendor": "Microsoft",
+  "priority": "critical",
+  "description": "Windows Security audit log: logon (4624), failed logon (4625), logoff (4634).",
+  "parser": "json",
+  "routing": {
+    "field": "$.EventID",
+    "rules": [{ "default": true, "class": "authentication" }]
+  },
+  "classes": {
+    "authentication": {
+      "mapping": {
+        "metadata.version":             { "const": "1.9.0-dev" },
+        "metadata.product.name":        { "const": "Windows Event Log" },
+        "metadata.product.vendor_name": { "const": "Microsoft" },
+        "metadata.logged_time":         { "time": "$.TimeCreated", "format": "iso8601" },
+        "time":                         { "time": "$.TimeCreated", "format": "iso8601" },
+        "category_uid":                 { "const": 3 },
+        "category_name":                { "const": "Identity & Access Management" },
+        "class_uid":                    { "const": 3002 },
+        "class_name":                   { "const": "Authentication" },
+        "activity_id":                  { "lookup": "$.EventID", "table": {"4624": 1, "4625": 1, "4634": 2}, "default": 0 },
+        "activity_name":                { "lookup": "$.EventID", "table": {"4624": "Logon", "4625": "Logon", "4634": "Logoff"}, "default": "Unknown" },
+        "type_uid":                     { "expr": "class_uid * 100 + activity_id" },
+        "severity_id":                  { "lookup": "$.EventID", "table": {"4624": 1, "4625": 3, "4634": 1}, "default": 1 },
+        "severity":                     { "lookup": "$.EventID", "table": {"4624": "Informational", "4625": "Medium", "4634": "Informational"}, "default": "Informational" },
+        "status_id":                    { "lookup": "$.EventID", "table": {"4624": 1, "4625": 2, "4634": 1}, "default": 0 },
+        "status":                       { "lookup": "$.EventID", "table": {"4624": "Success", "4625": "Failure", "4634": "Success"}, "default": "Unknown" },
+        "status_code":                  { "path": "$.Status" },
+        "user.name":                    { "path": "$.TargetUserName" },
+        "user.domain":                  { "path": "$.TargetDomainName" },
+        "actor.user.name":              { "path": "$.TargetUserName" },
+        "actor.user.domain":            { "path": "$.TargetDomainName" },
+        "src_endpoint.ip":              { "path": "$.IpAddress" },
+        "dst_endpoint.hostname":        { "path": "$.Computer" },
+        "service.name":                 { "const": "LSASS" },
+        "auth_protocol":                { "path": "$.AuthenticationPackageName" },
+        "logon_type_id":                { "int": "$.LogonType" },
+        "raw_data":                     { "raw": true }
+      }
+    }
+  }
+}

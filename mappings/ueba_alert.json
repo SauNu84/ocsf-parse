@@ -1,0 +1,40 @@
+{
+  "source_name": "ueba_alert",
+  "display_name": "UEBA / EDR Behavioral",
+  "vendor": "Various",
+  "priority": "medium",
+  "description": "Behavior-based detections (impossible travel, anomalous spend, etc). Often map to multiple classes in reality; we route the canonical alert into Detection Finding.",
+  "parser": "json",
+  "routing": {
+    "field": "$.alert_type",
+    "rules": [{ "default": true, "class": "detection_finding" }]
+  },
+  "classes": {
+    "detection_finding": {
+      "mapping": {
+        "metadata.version":             { "const": "1.9.0-dev" },
+        "metadata.product.name":        { "const": "UEBA" },
+        "metadata.product.vendor_name": { "const": "Various" },
+        "metadata.uid":                 { "path": "$.alert_id" },
+        "metadata.logged_time":         { "time": "$.timestamp", "format": "iso8601" },
+        "time":                         { "time": "$.timestamp", "format": "iso8601" },
+        "category_uid":                 { "const": 2 },
+        "category_name":                { "const": "Findings" },
+        "class_uid":                    { "const": 2004 },
+        "class_name":                   { "const": "Detection Finding" },
+        "activity_id":                  { "const": 1 },
+        "activity_name":                { "const": "Create" },
+        "type_uid":                     { "expr": "class_uid * 100 + activity_id" },
+        "severity_id":                  { "lookup": "$.severity", "table": {"low": 2, "medium": 3, "high": 4, "critical": 5}, "default": 1 },
+        "severity":                     { "path": "$.severity" },
+        "finding_info.uid":             { "path": "$.alert_id" },
+        "finding_info.title":           { "path": "$.alert_type" },
+        "finding_info.types":           { "const": ["Behavioral Analytics"] },
+        "actor.user.name":              { "path": "$.user" },
+        "src_endpoint.ip":              { "path": "$.src_ip" },
+        "message":                      { "path": "$.baseline" },
+        "raw_data":                     { "raw": true }
+      }
+    }
+  }
+}

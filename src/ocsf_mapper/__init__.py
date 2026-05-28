@@ -17,6 +17,9 @@ from ocsf_mapper.validate import validate, validate_stream
 from ocsf_mapper.schema import Schema
 from ocsf_mapper.registry import list_mappings
 
+# `ocsf_mapper.catalog` is a CLI module — import it directly when needed
+# (avoids `python -m ocsf_mapper.catalog` double-import warning).
+
 __all__ = [
     "apply",
     "apply_stream",

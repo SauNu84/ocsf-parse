@@ -1,0 +1,4 @@
+{"sid":"alert-1","_time":"2026-05-27T14:23:11Z","alert_title":"Brute Force Authentication Attempts","severity":"high","src":"203.0.113.50","dest":"web-01","correlation_search":"ess_bruteforce"}
+{"sid":"alert-2","_time":"2026-05-27T14:23:25Z","alert_title":"Anomalous Process - PowerShell with Encoded Command","severity":"critical","src":"10.0.1.42","dest":"WIN-01","correlation_search":"ess_powershell_anomaly"}
+{"sid":"alert-3","_time":"2026-05-27T14:23:42Z","alert_title":"Suspicious DNS Query - Known C2 Domain","severity":"high","src":"10.0.2.55","dest":"8.8.8.8","correlation_search":"ess_dns_c2"}
+{"sid":"alert-4","_time":"2026-05-27T14:24:01Z","alert_title":"User Locked Out","severity":"medium","src":"10.0.3.15","dest":"AD-01","correlation_search":"ess_lockout"}

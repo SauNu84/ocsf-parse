@@ -22,6 +22,27 @@ def test_list_mappings_summarizes_repo_mappings(mappings_dir):
     assert ct["sample"] and ct["sample"].endswith("cloudtrail.jsonl")
 
 
+def test_list_mappings_surfaces_metadata_fields(mappings_dir):
+    out = list_mappings(mappings_dir)
+    ct = next(m for m in out if m["name"] == "cloudtrail")
+    assert ct["display_name"] == "AWS CloudTrail"
+    assert ct["vendor"] == "AWS"
+    assert ct["priority"] == "critical"
+    assert "AWS management-plane" in ct["description"]
+
+
+def test_list_mappings_falls_back_when_metadata_missing(tmp_path):
+    import json
+    mapdir = tmp_path / "mappings"
+    mapdir.mkdir()
+    (mapdir / "bare.json").write_text(json.dumps({"parser": "json", "classes": {}}))
+    out = list_mappings(mapdir)
+    assert out[0]["display_name"] == "bare"
+    assert out[0]["vendor"] == "Unknown"
+    assert out[0]["priority"] == "medium"
+    assert out[0]["description"] == ""
+
+
 def test_list_mappings_skips_underscore_prefixed(tmp_path):
     (tmp_path / "_scratch.json").write_text("{}")
     (tmp_path / "real.json").write_text(json.dumps({"classes": {"c": {"mapping": {}}}}))

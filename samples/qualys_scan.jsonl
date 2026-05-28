@@ -1,0 +1,4 @@
+{"QID":"91234","DetectionDateTime":"2026-05-27T14:23:11Z","HostName":"web-01","IpAddress":"10.0.1.42","Title":"OpenSSH 7.x missing security patches","Severity":4,"CVE":"CVE-2024-1234","Type":"Confirmed","Status":"Active"}
+{"QID":"82910","DetectionDateTime":"2026-05-27T14:23:15Z","HostName":"db-01","IpAddress":"10.0.2.55","Title":"Apache HTTP Server vulnerability","Severity":5,"CVE":"CVE-2024-2345","Type":"Confirmed","Status":"Active"}
+{"QID":"38791","DetectionDateTime":"2026-05-27T14:23:22Z","HostName":"laptop-42","IpAddress":"10.0.1.99","Title":"macOS Safari kernel privilege escalation","Severity":4,"CVE":"CVE-2024-3456","Type":"Potential","Status":"Active"}
+{"QID":"38792","DetectionDateTime":"2026-05-27T14:23:31Z","HostName":"web-02","IpAddress":"10.0.1.42","Title":"Log4j RCE not patched","Severity":5,"CVE":"CVE-2021-44228","Type":"Confirmed","Status":"Active"}

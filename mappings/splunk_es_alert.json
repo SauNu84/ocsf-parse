@@ -1,0 +1,41 @@
+{
+  "source_name": "splunk_es_alert",
+  "display_name": "Splunk ES Alert",
+  "vendor": "Splunk",
+  "priority": "critical",
+  "description": "Splunk Enterprise Security notable events from correlation searches.",
+  "parser": "json",
+  "routing": {
+    "field": "$.alert_title",
+    "rules": [{ "default": true, "class": "security_finding" }]
+  },
+  "classes": {
+    "security_finding": {
+      "mapping": {
+        "metadata.version":             { "const": "1.9.0-dev" },
+        "metadata.product.name":        { "const": "Splunk ES" },
+        "metadata.product.vendor_name": { "const": "Splunk" },
+        "metadata.uid":                 { "path": "$.sid" },
+        "metadata.logged_time":         { "time": "$._time", "format": "iso8601" },
+        "time":                         { "time": "$._time", "format": "iso8601" },
+        "category_uid":                 { "const": 2 },
+        "category_name":                { "const": "Findings" },
+        "class_uid":                    { "const": 2001 },
+        "class_name":                   { "const": "Security Finding" },
+        "activity_id":                  { "const": 1 },
+        "activity_name":                { "const": "Create" },
+        "type_uid":                     { "expr": "class_uid * 100 + activity_id" },
+        "severity_id":                  { "lookup": "$.severity", "table": {"informational": 1, "low": 2, "medium": 3, "high": 4, "critical": 5}, "default": 1 },
+        "severity":                     { "path": "$.severity" },
+        "state_id":                     { "const": 1 },
+        "state":                        { "const": "New" },
+        "finding.uid":                  { "path": "$.sid" },
+        "finding.title":                { "path": "$.alert_title" },
+        "finding.types":                { "const": ["SIEM Correlation"] },
+        "src_endpoint.ip":              { "path": "$.src" },
+        "dst_endpoint.hostname":        { "path": "$.dest" },
+        "raw_data":                     { "raw": true }
+      }
+    }
+  }
+}

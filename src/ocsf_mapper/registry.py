@@ -19,9 +19,12 @@ _SAMPLE_EXTS = (".jsonl", ".log", ".json", ".ndjson")
 def list_mappings(folder: Path | str = "mappings") -> list[dict]:
     """Return one summary dict per mapping in ``folder``.
 
-    Each summary: ``{name, path, source_name, parser_kind, classes, sample}``.
-    ``classes`` is a list of OCSF class names declared by the mapping.
-    ``sample`` is the resolved sample path (or ``None`` if none found).
+    Each summary:
+        ``{name, path, source_name, display_name, vendor, priority,
+           description, parser_kind, classes, sample}``
+
+    Metadata fields (``display_name``, ``vendor``, ``priority``, ``description``)
+    fall back to sensible defaults if the mapping doesn't carry them yet.
     """
     folder = Path(folder)
     if not folder.is_dir():
@@ -38,7 +41,11 @@ def list_mappings(folder: Path | str = "mappings") -> list[dict]:
             {
                 "name": p.stem,
                 "path": str(p),
-                "source_name": cfg.get("source_name", p.stem),
+                "source_name":  cfg.get("source_name", p.stem),
+                "display_name": cfg.get("display_name", cfg.get("source_name", p.stem)),
+                "vendor":       cfg.get("vendor", "Unknown"),
+                "priority":     cfg.get("priority", "medium"),
+                "description":  cfg.get("description", ""),
                 "parser_kind": "json" if cfg.get("parser") == "json" else "regex",
                 "classes": sorted(cfg.get("classes", {}).keys()),
                 "sample": _find_sample(p.stem, folder.parent / "samples"),

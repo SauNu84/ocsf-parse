@@ -1,0 +1,5 @@
+{"EventID":4624,"TimeCreated":"2026-05-27T14:23:11Z","Computer":"WIN-01","TargetUserName":"alice","TargetDomainName":"CORP","IpAddress":"10.0.1.42","LogonType":3,"AuthenticationPackageName":"NTLM"}
+{"EventID":4625,"TimeCreated":"2026-05-27T14:23:18Z","Computer":"WIN-01","TargetUserName":"administrator","TargetDomainName":"CORP","IpAddress":"203.0.113.50","LogonType":3,"AuthenticationPackageName":"NTLM","Status":"0xC000006D"}
+{"EventID":4624,"TimeCreated":"2026-05-27T14:23:25Z","Computer":"WIN-02","TargetUserName":"bob","TargetDomainName":"CORP","IpAddress":"10.0.2.55","LogonType":2,"AuthenticationPackageName":"Kerberos"}
+{"EventID":4634,"TimeCreated":"2026-05-27T14:23:42Z","Computer":"WIN-01","TargetUserName":"alice","TargetDomainName":"CORP","IpAddress":"10.0.1.42","LogonType":3}
+{"EventID":4625,"TimeCreated":"2026-05-27T14:23:55Z","Computer":"WIN-03","TargetUserName":"guest","TargetDomainName":"CORP","IpAddress":"198.51.100.7","LogonType":10,"AuthenticationPackageName":"NTLM","Status":"0xC000006A"}

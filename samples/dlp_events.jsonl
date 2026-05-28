@@ -1,0 +1,3 @@
+{"event_time":"2026-05-27T14:23:11Z","user":"alice","action":"copy","src_path":"/Users/alice/Documents/customer-list.xlsx","dst_path":"/Volumes/USB-DRIVE/customer-list.xlsx","host":"laptop-42","policy":"Block PII to removable media","action_taken":"Blocked"}
+{"event_time":"2026-05-27T14:23:25Z","user":"bob","action":"upload","src_path":"/Users/bob/Downloads/q2-financials.pdf","dst_path":"https://dropbox.com/upload","host":"laptop-99","policy":"Block financial docs to cloud","action_taken":"Quarantined"}
+{"event_time":"2026-05-27T14:23:42Z","user":"carol","action":"copy","src_path":"/Users/carol/Documents/draft-press-release.docx","dst_path":"gmail://attach","host":"laptop-77","policy":"Audit confidential","action_taken":"Audited"}

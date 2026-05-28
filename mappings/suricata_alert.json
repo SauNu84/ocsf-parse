@@ -1,0 +1,45 @@
+{
+  "source_name": "suricata_alert",
+  "display_name": "Suricata IDS",
+  "vendor": "OISF (OSS)",
+  "priority": "high",
+  "description": "Suricata EVE JSON alert events with signature_id, category, severity.",
+  "parser": "json",
+  "routing": {
+    "field": "$.event_type",
+    "rules": [
+      { "matches": ["alert"], "class": "detection_finding" },
+      { "default": true, "class": "detection_finding" }
+    ]
+  },
+  "classes": {
+    "detection_finding": {
+      "mapping": {
+        "metadata.version":             { "const": "1.9.0-dev" },
+        "metadata.product.name":        { "const": "Suricata" },
+        "metadata.product.vendor_name": { "const": "OISF" },
+        "metadata.uid":                 { "path": "$.flow_id" },
+        "metadata.logged_time":         { "time": "$.timestamp", "format": "iso8601" },
+        "time":                         { "time": "$.timestamp", "format": "iso8601" },
+        "category_uid":                 { "const": 2 },
+        "category_name":                { "const": "Findings" },
+        "class_uid":                    { "const": 2004 },
+        "class_name":                   { "const": "Detection Finding" },
+        "activity_id":                  { "const": 1 },
+        "activity_name":                { "const": "Create" },
+        "type_uid":                     { "expr": "class_uid * 100 + activity_id" },
+        "severity_id":                  { "lookup": "$.alert.severity", "table": {"1": 5, "2": 4, "3": 3}, "default": 1 },
+        "severity":                     { "lookup": "$.alert.severity", "table": {"1": "Critical", "2": "High", "3": "Medium"}, "default": "Informational" },
+        "finding_info.uid":             { "path": "$.alert.signature_id" },
+        "finding_info.title":           { "path": "$.alert.signature" },
+        "finding_info.types":           { "path": "$.alert.category" },
+        "src_endpoint.ip":              { "path": "$.src_ip" },
+        "src_endpoint.port":            { "int": "$.src_port" },
+        "dst_endpoint.ip":              { "path": "$.dest_ip" },
+        "dst_endpoint.port":            { "int": "$.dest_port" },
+        "connection_info.protocol_name":{ "path": "$.proto" },
+        "raw_data":                     { "raw": true }
+      }
+    }
+  }
+}

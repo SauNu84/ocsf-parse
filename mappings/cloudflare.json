@@ -1,47 +1,200 @@
 {
   "source_name": "cloudflare",
+  "display_name": "Cloudflare Logpush",
+  "vendor": "Cloudflare",
+  "priority": "high",
+  "description": "Cloudflare HTTP request logs from Logpush, with WAF action.",
   "parser": "json",
   "routing": {
     "field": "$.ClientRequestMethod",
-    "rules": [{ "default": true, "class": "http_activity" }]
+    "rules": [
+      {
+        "default": true,
+        "class": "http_activity"
+      }
+    ]
   },
   "classes": {
     "http_activity": {
       "mapping": {
-        "metadata.version":             { "const": "1.9.0-dev" },
-        "metadata.product.name":        { "const": "Cloudflare" },
-        "metadata.product.vendor_name": { "const": "Cloudflare" },
-        "metadata.product.feature.name":{ "const": "Logpush" },
-        "metadata.uid":                 { "path": "$.RayID" },
-        "metadata.logged_time":         { "time": "$.EdgeEndTimestamp", "format": "iso8601" },
-        "time":                         { "time": "$.EdgeStartTimestamp", "format": "iso8601" },
-        "category_uid":                 { "const": 4 },
-        "category_name":                { "const": "Network Activity" },
-        "class_uid":                    { "const": 4002 },
-        "class_name":                   { "const": "HTTP Activity" },
-        "activity_id":                  { "lookup": "$.ClientRequestMethod", "table": {"CONNECT": 1, "DELETE": 2, "GET": 3, "HEAD": 4, "OPTIONS": 5, "POST": 6, "PUT": 7, "TRACE": 8, "PATCH": 9}, "default": 0 },
-        "activity_name":                { "lookup": "$.ClientRequestMethod", "table": {"CONNECT": "Connect", "DELETE": "Delete", "GET": "Get", "HEAD": "Head", "OPTIONS": "Options", "POST": "Post", "PUT": "Put", "TRACE": "Trace", "PATCH": "Patch"}, "default": "Unknown" },
-        "type_uid":                     { "expr": "class_uid * 100 + activity_id" },
-        "severity_id":                  { "lookup": "$.WAFAction", "table": {"allow": 1, "block": 4, "challenge": 3}, "default": 1 },
-        "severity":                     { "lookup": "$.WAFAction", "table": {"allow": "Informational", "block": "High", "challenge": "Medium"}, "default": "Informational" },
-        "status_id":                    { "range": "$.EdgeResponseStatus", "ranges": [[200, 399, 1], [400, 599, 2]], "default": 0 },
-        "status":                       { "range": "$.EdgeResponseStatus", "ranges": [[200, 399, "Success"], [400, 599, "Failure"]], "default": "Unknown" },
-        "status_code":                  { "path": "$.EdgeResponseStatus" },
-        "src_endpoint.ip":              { "path": "$.ClientIP" },
-        "src_endpoint.location.country":{ "path": "$.ClientCountry" },
-        "http_request.http_method":     { "path": "$.ClientRequestMethod" },
-        "http_request.url.hostname":    { "path": "$.ClientRequestHost" },
-        "http_request.url.path":        { "path": "$.ClientRequestPath" },
-        "http_request.url.url_string":  { "path": "$.ClientRequestURI" },
-        "http_request.user_agent":      { "path": "$.ClientRequestUserAgent" },
-        "http_request.referrer":        { "path": "$.ClientRequestReferer" },
-        "http_response.code":           { "int": "$.EdgeResponseStatus" },
-        "http_response.length":         { "int": "$.EdgeResponseBytes" },
-        "http_status":                  { "int": "$.EdgeResponseStatus" },
-        "disposition":                  { "lookup": "$.WAFAction", "table": {"allow": "Allowed", "block": "Blocked", "challenge": "Challenged"}, "default": "Unknown" },
-        "disposition_id":               { "lookup": "$.WAFAction", "table": {"allow": 1, "block": 2, "challenge": 99}, "default": 0 },
-        "cloud.provider":               { "const": "Cloudflare" },
-        "raw_data":                     { "raw": true }
+        "metadata.version": {
+          "const": "1.9.0-dev"
+        },
+        "metadata.product.name": {
+          "const": "Cloudflare"
+        },
+        "metadata.product.vendor_name": {
+          "const": "Cloudflare"
+        },
+        "metadata.product.feature.name": {
+          "const": "Logpush"
+        },
+        "metadata.uid": {
+          "path": "$.RayID"
+        },
+        "metadata.logged_time": {
+          "time": "$.EdgeEndTimestamp",
+          "format": "iso8601"
+        },
+        "time": {
+          "time": "$.EdgeStartTimestamp",
+          "format": "iso8601"
+        },
+        "category_uid": {
+          "const": 4
+        },
+        "category_name": {
+          "const": "Network Activity"
+        },
+        "class_uid": {
+          "const": 4002
+        },
+        "class_name": {
+          "const": "HTTP Activity"
+        },
+        "activity_id": {
+          "lookup": "$.ClientRequestMethod",
+          "table": {
+            "CONNECT": 1,
+            "DELETE": 2,
+            "GET": 3,
+            "HEAD": 4,
+            "OPTIONS": 5,
+            "POST": 6,
+            "PUT": 7,
+            "TRACE": 8,
+            "PATCH": 9
+          },
+          "default": 0
+        },
+        "activity_name": {
+          "lookup": "$.ClientRequestMethod",
+          "table": {
+            "CONNECT": "Connect",
+            "DELETE": "Delete",
+            "GET": "Get",
+            "HEAD": "Head",
+            "OPTIONS": "Options",
+            "POST": "Post",
+            "PUT": "Put",
+            "TRACE": "Trace",
+            "PATCH": "Patch"
+          },
+          "default": "Unknown"
+        },
+        "type_uid": {
+          "expr": "class_uid * 100 + activity_id"
+        },
+        "severity_id": {
+          "lookup": "$.WAFAction",
+          "table": {
+            "allow": 1,
+            "block": 4,
+            "challenge": 3
+          },
+          "default": 1
+        },
+        "severity": {
+          "lookup": "$.WAFAction",
+          "table": {
+            "allow": "Informational",
+            "block": "High",
+            "challenge": "Medium"
+          },
+          "default": "Informational"
+        },
+        "status_id": {
+          "range": "$.EdgeResponseStatus",
+          "ranges": [
+            [
+              200,
+              399,
+              1
+            ],
+            [
+              400,
+              599,
+              2
+            ]
+          ],
+          "default": 0
+        },
+        "status": {
+          "range": "$.EdgeResponseStatus",
+          "ranges": [
+            [
+              200,
+              399,
+              "Success"
+            ],
+            [
+              400,
+              599,
+              "Failure"
+            ]
+          ],
+          "default": "Unknown"
+        },
+        "status_code": {
+          "path": "$.EdgeResponseStatus"
+        },
+        "src_endpoint.ip": {
+          "path": "$.ClientIP"
+        },
+        "src_endpoint.location.country": {
+          "path": "$.ClientCountry"
+        },
+        "http_request.http_method": {
+          "path": "$.ClientRequestMethod"
+        },
+        "http_request.url.hostname": {
+          "path": "$.ClientRequestHost"
+        },
+        "http_request.url.path": {
+          "path": "$.ClientRequestPath"
+        },
+        "http_request.url.url_string": {
+          "path": "$.ClientRequestURI"
+        },
+        "http_request.user_agent": {
+          "path": "$.ClientRequestUserAgent"
+        },
+        "http_request.referrer": {
+          "path": "$.ClientRequestReferer"
+        },
+        "http_response.code": {
+          "int": "$.EdgeResponseStatus"
+        },
+        "http_response.length": {
+          "int": "$.EdgeResponseBytes"
+        },
+        "http_status": {
+          "int": "$.EdgeResponseStatus"
+        },
+        "disposition": {
+          "lookup": "$.WAFAction",
+          "table": {
+            "allow": "Allowed",
+            "block": "Blocked",
+            "challenge": "Challenged"
+          },
+          "default": "Unknown"
+        },
+        "disposition_id": {
+          "lookup": "$.WAFAction",
+          "table": {
+            "allow": 1,
+            "block": 2,
+            "challenge": 99
+          },
+          "default": 0
+        },
+        "cloud.provider": {
+          "const": "Cloudflare"
+        },
+        "raw_data": {
+          "raw": true
+        }
       }
     }
   }

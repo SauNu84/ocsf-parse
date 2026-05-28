@@ -1,0 +1,41 @@
+{
+  "source_name": "waf_logs",
+  "display_name": "WAF (AWS / Cloudflare / generic)",
+  "vendor": "Various",
+  "priority": "medium",
+  "description": "Web Application Firewall logs (AWS WAF format). Distinct from full HTTP access logs by carrying ACL decisions.",
+  "parser": "json",
+  "routing": {
+    "field": "$.action",
+    "rules": [{ "default": true, "class": "http_activity" }]
+  },
+  "classes": {
+    "http_activity": {
+      "mapping": {
+        "metadata.version":             { "const": "1.9.0-dev" },
+        "metadata.product.name":        { "const": "WAF" },
+        "metadata.product.vendor_name": { "const": "AWS" },
+        "metadata.uid":                 { "path": "$.requestId" },
+        "metadata.logged_time":         { "time": "$.timestamp", "format": "epoch_ms" },
+        "time":                         { "time": "$.timestamp", "format": "epoch_ms" },
+        "category_uid":                 { "const": 4 },
+        "category_name":                { "const": "Network Activity" },
+        "class_uid":                    { "const": 4002 },
+        "class_name":                   { "const": "HTTP Activity" },
+        "activity_id":                  { "lookup": "$.httpRequest.method", "table": {"GET": 3, "POST": 6, "PUT": 7, "DELETE": 2, "PATCH": 9, "HEAD": 4, "OPTIONS": 5}, "default": 0 },
+        "activity_name":                { "lookup": "$.httpRequest.method", "table": {"GET": "Get", "POST": "Post", "PUT": "Put", "DELETE": "Delete", "PATCH": "Patch", "HEAD": "Head", "OPTIONS": "Options"}, "default": "Unknown" },
+        "type_uid":                     { "expr": "class_uid * 100 + activity_id" },
+        "severity_id":                  { "lookup": "$.action", "table": {"ALLOW": 1, "BLOCK": 4, "COUNT": 1, "CAPTCHA": 3, "CHALLENGE": 3}, "default": 1 },
+        "severity":                     { "lookup": "$.action", "table": {"ALLOW": "Informational", "BLOCK": "High", "COUNT": "Informational", "CAPTCHA": "Medium", "CHALLENGE": "Medium"}, "default": "Informational" },
+        "disposition":                  { "lookup": "$.action", "table": {"ALLOW": "Allowed", "BLOCK": "Blocked", "COUNT": "Allowed", "CAPTCHA": "Challenged", "CHALLENGE": "Challenged"}, "default": "Unknown" },
+        "disposition_id":               { "lookup": "$.action", "table": {"ALLOW": 1, "BLOCK": 2, "COUNT": 1, "CAPTCHA": 99, "CHALLENGE": 99}, "default": 0 },
+        "src_endpoint.ip":              { "path": "$.httpRequest.clientIp" },
+        "http_request.http_method":     { "path": "$.httpRequest.method" },
+        "http_request.url.path":        { "path": "$.httpRequest.uri" },
+        "firewall_rule.uid":            { "path": "$.terminatingRuleId" },
+        "firewall_rule.name":           { "path": "$.terminatingRuleId" },
+        "raw_data":                     { "raw": true }
+      }
+    }
+  }
+}

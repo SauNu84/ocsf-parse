@@ -1,37 +1,144 @@
 {
   "source_name": "wazuh",
+  "display_name": "Wazuh HIDS",
+  "vendor": "Wazuh",
+  "priority": "high",
+  "description": "Wazuh agent alerts with rule.id, rule.level, agent context.",
   "parser": "json",
   "routing": {
     "field": "$.rule.id",
-    "rules": [{ "default": true, "class": "security_finding" }]
+    "rules": [
+      {
+        "default": true,
+        "class": "security_finding"
+      }
+    ]
   },
   "classes": {
     "security_finding": {
       "mapping": {
-        "metadata.version":             { "const": "1.9.0-dev" },
-        "metadata.product.name":        { "const": "Wazuh" },
-        "metadata.product.vendor_name": { "const": "Wazuh" },
-        "metadata.uid":                 { "path": "$.id" },
-        "metadata.logged_time":         { "time": "$.timestamp", "format": "iso8601" },
-        "time":                         { "time": "$.timestamp", "format": "iso8601" },
-        "category_uid":                 { "const": 2 },
-        "category_name":                { "const": "Findings" },
-        "class_uid":                    { "const": 2001 },
-        "class_name":                   { "const": "Security Finding" },
-        "activity_id":                  { "const": 1 },
-        "activity_name":                { "const": "Create" },
-        "type_uid":                     { "expr": "class_uid * 100 + activity_id" },
-        "severity_id":                  { "range": "$.rule.level", "ranges": [[0, 3, 1], [4, 7, 3], [8, 11, 4], [12, 15, 5]], "default": 1 },
-        "severity":                     { "range": "$.rule.level", "ranges": [[0, 3, "Informational"], [4, 7, "Medium"], [8, 11, "High"], [12, 15, "Critical"]], "default": "Informational" },
-        "state_id":                     { "const": 1 },
-        "state":                        { "const": "New" },
-        "finding.uid":                  { "path": "$.rule.id" },
-        "finding.title":                { "path": "$.rule.description" },
-        "finding.types":                { "const": ["IDS"] },
-        "src_endpoint.ip":              { "path": "$.data.srcip" },
-        "src_endpoint.hostname":        { "path": "$.agent.name" },
-        "actor.user.name":              { "path": "$.data.srcuser" },
-        "raw_data":                     { "raw": true }
+        "metadata.version": {
+          "const": "1.9.0-dev"
+        },
+        "metadata.product.name": {
+          "const": "Wazuh"
+        },
+        "metadata.product.vendor_name": {
+          "const": "Wazuh"
+        },
+        "metadata.uid": {
+          "path": "$.id"
+        },
+        "metadata.logged_time": {
+          "time": "$.timestamp",
+          "format": "iso8601"
+        },
+        "time": {
+          "time": "$.timestamp",
+          "format": "iso8601"
+        },
+        "category_uid": {
+          "const": 2
+        },
+        "category_name": {
+          "const": "Findings"
+        },
+        "class_uid": {
+          "const": 2001
+        },
+        "class_name": {
+          "const": "Security Finding"
+        },
+        "activity_id": {
+          "const": 1
+        },
+        "activity_name": {
+          "const": "Create"
+        },
+        "type_uid": {
+          "expr": "class_uid * 100 + activity_id"
+        },
+        "severity_id": {
+          "range": "$.rule.level",
+          "ranges": [
+            [
+              0,
+              3,
+              1
+            ],
+            [
+              4,
+              7,
+              3
+            ],
+            [
+              8,
+              11,
+              4
+            ],
+            [
+              12,
+              15,
+              5
+            ]
+          ],
+          "default": 1
+        },
+        "severity": {
+          "range": "$.rule.level",
+          "ranges": [
+            [
+              0,
+              3,
+              "Informational"
+            ],
+            [
+              4,
+              7,
+              "Medium"
+            ],
+            [
+              8,
+              11,
+              "High"
+            ],
+            [
+              12,
+              15,
+              "Critical"
+            ]
+          ],
+          "default": "Informational"
+        },
+        "state_id": {
+          "const": 1
+        },
+        "state": {
+          "const": "New"
+        },
+        "finding.uid": {
+          "path": "$.rule.id"
+        },
+        "finding.title": {
+          "path": "$.rule.description"
+        },
+        "finding.types": {
+          "const": [
+            "IDS"
+          ]
+        },
+        "src_endpoint.ip": {
+          "path": "$.data.srcip"
+        },
+        "src_endpoint.hostname": {
+          "path": "$.agent.name"
+        },
+        "actor.user.name": {
+          "path": "$.data.srcuser"
+        },
+        "raw_data": {
+          "raw": true
+        }
       }
     }
   }

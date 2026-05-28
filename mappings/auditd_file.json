@@ -1,39 +1,122 @@
 {
   "source_name": "auditd_file",
+  "display_name": "Linux auditd (file)",
+  "vendor": "Linux Audit",
+  "priority": "critical",
+  "description": "Linux auditd file syscalls: open/read/write/unlink/chmod/chown.",
   "parser": "json",
   "routing": {
     "field": "$.action",
-    "rules": [{ "default": true, "class": "file_activity" }]
+    "rules": [
+      {
+        "default": true,
+        "class": "file_activity"
+      }
+    ]
   },
   "classes": {
     "file_activity": {
       "mapping": {
-        "metadata.version":             { "const": "1.9.0-dev" },
-        "metadata.product.name":        { "const": "auditd" },
-        "metadata.product.vendor_name": { "const": "Linux Audit" },
-        "metadata.logged_time":         { "time": "$.timestamp", "format": "iso8601" },
-        "time":                         { "time": "$.timestamp", "format": "iso8601" },
-        "category_uid":                 { "const": 1 },
-        "category_name":                { "const": "System Activity" },
-        "class_uid":                    { "const": 1001 },
-        "class_name":                   { "const": "File System Activity" },
-        "activity_id":                  { "lookup": "$.action", "table": {"create": 1, "read": 2, "write": 3, "delete": 4, "rename": 5, "chmod": 6, "chown": 7}, "default": 0 },
-        "activity_name":                { "lookup": "$.action", "table": {"create": "Create", "read": "Read", "write": "Update", "delete": "Delete", "rename": "Rename", "chmod": "Set Attributes", "chown": "Set Security"}, "default": "Unknown" },
-        "type_uid":                     { "expr": "class_uid * 100 + activity_id" },
-        "severity_id":                  { "const": 1 },
-        "severity":                     { "const": "Informational" },
-        "device.hostname":              { "path": "$.host" },
-        "device.type_id":               { "const": 5 },
-        "device.type":                  { "const": "Server" },
-        "actor.user.name":              { "path": "$.user" },
-        "actor.user.uid":               { "path": "$.uid" },
-        "actor.process.pid":            { "int": "$.pid" },
-        "actor.process.name":           { "path": "$.exe" },
-        "file.path":                    { "path": "$.path" },
-        "file.name":                    { "path": "$.name" },
-        "file.type_id":                 { "const": 1 },
-        "file.type":                    { "const": "Regular File" },
-        "raw_data":                     { "raw": true }
+        "metadata.version": {
+          "const": "1.9.0-dev"
+        },
+        "metadata.product.name": {
+          "const": "auditd"
+        },
+        "metadata.product.vendor_name": {
+          "const": "Linux Audit"
+        },
+        "metadata.logged_time": {
+          "time": "$.timestamp",
+          "format": "iso8601"
+        },
+        "time": {
+          "time": "$.timestamp",
+          "format": "iso8601"
+        },
+        "category_uid": {
+          "const": 1
+        },
+        "category_name": {
+          "const": "System Activity"
+        },
+        "class_uid": {
+          "const": 1001
+        },
+        "class_name": {
+          "const": "File System Activity"
+        },
+        "activity_id": {
+          "lookup": "$.action",
+          "table": {
+            "create": 1,
+            "read": 2,
+            "write": 3,
+            "delete": 4,
+            "rename": 5,
+            "chmod": 6,
+            "chown": 7
+          },
+          "default": 0
+        },
+        "activity_name": {
+          "lookup": "$.action",
+          "table": {
+            "create": "Create",
+            "read": "Read",
+            "write": "Update",
+            "delete": "Delete",
+            "rename": "Rename",
+            "chmod": "Set Attributes",
+            "chown": "Set Security"
+          },
+          "default": "Unknown"
+        },
+        "type_uid": {
+          "expr": "class_uid * 100 + activity_id"
+        },
+        "severity_id": {
+          "const": 1
+        },
+        "severity": {
+          "const": "Informational"
+        },
+        "device.hostname": {
+          "path": "$.host"
+        },
+        "device.type_id": {
+          "const": 5
+        },
+        "device.type": {
+          "const": "Server"
+        },
+        "actor.user.name": {
+          "path": "$.user"
+        },
+        "actor.user.uid": {
+          "path": "$.uid"
+        },
+        "actor.process.pid": {
+          "int": "$.pid"
+        },
+        "actor.process.name": {
+          "path": "$.exe"
+        },
+        "file.path": {
+          "path": "$.path"
+        },
+        "file.name": {
+          "path": "$.name"
+        },
+        "file.type_id": {
+          "const": 1
+        },
+        "file.type": {
+          "const": "Regular File"
+        },
+        "raw_data": {
+          "raw": true
+        }
       }
     }
   }

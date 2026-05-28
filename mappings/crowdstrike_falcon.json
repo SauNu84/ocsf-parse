@@ -1,0 +1,43 @@
+{
+  "source_name": "crowdstrike_falcon",
+  "display_name": "CrowdStrike Falcon",
+  "vendor": "CrowdStrike",
+  "priority": "critical",
+  "description": "Falcon Streaming API detection events (DetectName, Tactic, Technique).",
+  "parser": "json",
+  "routing": {
+    "field": "$.event.DetectName",
+    "rules": [{ "default": true, "class": "detection_finding" }]
+  },
+  "classes": {
+    "detection_finding": {
+      "mapping": {
+        "metadata.version":             { "const": "1.9.0-dev" },
+        "metadata.product.name":        { "const": "Falcon Insight" },
+        "metadata.product.vendor_name": { "const": "CrowdStrike" },
+        "metadata.uid":                 { "path": "$.event.DetectId" },
+        "metadata.logged_time":         { "time": "$.event.ProcessStartTime", "format": "epoch_s" },
+        "time":                         { "time": "$.event.ProcessStartTime", "format": "epoch_s" },
+        "category_uid":                 { "const": 2 },
+        "category_name":                { "const": "Findings" },
+        "class_uid":                    { "const": 2004 },
+        "class_name":                   { "const": "Detection Finding" },
+        "activity_id":                  { "const": 1 },
+        "activity_name":                { "const": "Create" },
+        "type_uid":                     { "expr": "class_uid * 100 + activity_id" },
+        "severity_id":                  { "lookup": "$.event.SeverityName", "table": {"Informational": 1, "Low": 2, "Medium": 3, "High": 4, "Critical": 5}, "default": 1 },
+        "severity":                     { "path": "$.event.SeverityName" },
+        "finding_info.uid":             { "path": "$.event.DetectId" },
+        "finding_info.title":           { "path": "$.event.DetectName" },
+        "finding_info.types":           { "const": ["Endpoint Detection"] },
+        "device.hostname":              { "path": "$.event.ComputerName" },
+        "device.type_id":               { "const": 5 },
+        "actor.user.name":              { "path": "$.event.UserName" },
+        "actor.process.name":           { "path": "$.event.FileName" },
+        "actor.process.cmd_line":       { "path": "$.event.CommandLine" },
+        "attacks":                      { "const": [{"tactic": {"name": "?"}, "technique": {"name": "?"}}] },
+        "raw_data":                     { "raw": true }
+      }
+    }
+  }
+}

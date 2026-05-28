@@ -1,0 +1,50 @@
+{
+  "source_name": "azure_ad_signin",
+  "display_name": "Azure AD Sign-in",
+  "vendor": "Microsoft",
+  "priority": "critical",
+  "description": "Azure AD / Entra ID interactive and non-interactive sign-in events.",
+  "parser": "json",
+  "routing": {
+    "field": "$.userPrincipalName",
+    "rules": [{ "default": true, "class": "authentication" }]
+  },
+  "classes": {
+    "authentication": {
+      "mapping": {
+        "metadata.version":             { "const": "1.9.0-dev" },
+        "metadata.product.name":        { "const": "Azure AD" },
+        "metadata.product.vendor_name": { "const": "Microsoft" },
+        "metadata.uid":                 { "path": "$.id" },
+        "metadata.logged_time":         { "time": "$.createdDateTime", "format": "iso8601" },
+        "time":                         { "time": "$.createdDateTime", "format": "iso8601" },
+        "category_uid":                 { "const": 3 },
+        "category_name":                { "const": "Identity & Access Management" },
+        "class_uid":                    { "const": 3002 },
+        "class_name":                   { "const": "Authentication" },
+        "activity_id":                  { "const": 1 },
+        "activity_name":                { "const": "Logon" },
+        "type_uid":                     { "expr": "class_uid * 100 + activity_id" },
+        "severity_id":                  { "lookup": "$.status.errorCode", "table": {"0": 1}, "default": 3 },
+        "severity":                     { "lookup": "$.status.errorCode", "table": {"0": "Informational"}, "default": "Medium" },
+        "status_id":                    { "lookup": "$.status.errorCode", "table": {"0": 1}, "default": 2 },
+        "status":                       { "lookup": "$.status.errorCode", "table": {"0": "Success"}, "default": "Failure" },
+        "status_detail":                { "path": "$.status.failureReason" },
+        "user.name":                    { "path": "$.userPrincipalName" },
+        "user.uid":                     { "path": "$.userId" },
+        "user.full_name":               { "path": "$.userDisplayName" },
+        "actor.user.name":              { "path": "$.userPrincipalName" },
+        "src_endpoint.ip":              { "path": "$.ipAddress" },
+        "service.name":                 { "path": "$.appDisplayName" },
+        "service.uid":                  { "path": "$.appId" },
+        "session.uid":                  { "path": "$.correlationId" },
+        "device.name":                  { "path": "$.deviceDetail.displayName" },
+        "device.uid":                   { "path": "$.deviceDetail.deviceId" },
+        "device.os.name":               { "path": "$.deviceDetail.operatingSystem" },
+        "is_remote":                    { "const": true },
+        "auth_protocol":                { "const": "OAuth2" },
+        "raw_data":                     { "raw": true }
+      }
+    }
+  }
+}

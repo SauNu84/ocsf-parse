@@ -1,0 +1,3 @@
+{"unique_id":"gw-1","timestamp":"2026-05-27T14:23:11Z","event_name":"send_message","actor_email":"alice@example.com","recipients":["bob@example.com"],"subject":"Q2 update","message_id":"<aaa@mail.gmail.com>"}
+{"unique_id":"gw-2","timestamp":"2026-05-27T14:23:18Z","event_name":"receive_message","actor_email":"bob@example.com","recipients":["bob@example.com"],"subject":"Re: Q2 update","message_id":"<bbb@mail.gmail.com>"}
+{"unique_id":"gw-3","timestamp":"2026-05-27T14:23:31Z","event_name":"send_message","actor_email":"carol@example.com","recipients":["alice@example.com","dave@example.com"],"subject":"Slides for Friday","message_id":"<ccc@mail.gmail.com>"}

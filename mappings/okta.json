@@ -1,77 +1,267 @@
 {
   "source_name": "okta",
+  "display_name": "Okta",
+  "vendor": "Okta",
+  "priority": "high",
+  "description": "Okta System Log: user.session.start and application.user_membership.add/remove.",
   "parser": "json",
   "routing": {
     "field": "$.eventType",
     "rules": [
-      { "matches": ["user.session.start"], "class": "authentication" },
-      { "matches": ["application.user_membership.add"], "class": "entity_management" }
+      {
+        "matches": [
+          "user.session.start"
+        ],
+        "class": "authentication"
+      },
+      {
+        "matches": [
+          "application.user_membership.add"
+        ],
+        "class": "entity_management"
+      }
     ]
   },
   "classes": {
     "authentication": {
       "mapping": {
-        "metadata.version":             { "const": "1.9.0-dev" },
-        "metadata.product.name":        { "const": "Okta" },
-        "metadata.product.vendor_name": { "const": "Okta" },
-        "metadata.uid":                 { "path": "$.uuid" },
-        "metadata.logged_time":         { "time": "$.published", "format": "iso8601" },
-        "time":                         { "time": "$.published", "format": "iso8601" },
-        "category_uid":                 { "const": 3 },
-        "category_name":                { "const": "Identity & Access Management" },
-        "class_uid":                    { "const": 3002 },
-        "class_name":                   { "const": "Authentication" },
-        "activity_id":                  { "const": 1 },
-        "activity_name":                { "const": "Logon" },
-        "type_uid":                     { "expr": "class_uid * 100 + activity_id" },
-        "severity_id":                  { "lookup": "$.severity", "table": {"INFO": 1, "WARN": 3, "ERROR": 4}, "default": 1 },
-        "severity":                     { "lookup": "$.severity", "table": {"INFO": "Informational", "WARN": "Medium", "ERROR": "High"}, "default": "Informational" },
-        "status_id":                    { "lookup": "$.outcome.result", "table": {"SUCCESS": 1, "FAILURE": 2, "DENY": 2, "ALLOW": 1}, "default": 0 },
-        "status":                       { "lookup": "$.outcome.result", "table": {"SUCCESS": "Success", "FAILURE": "Failure", "DENY": "Failure", "ALLOW": "Success"}, "default": "Unknown" },
-        "status_detail":                { "path": "$.outcome.reason" },
-        "user.name":                    { "path": "$.actor.alternateId" },
-        "user.uid":                     { "path": "$.actor.id" },
-        "user.type":                    { "path": "$.actor.type" },
-        "user.full_name":               { "path": "$.actor.displayName" },
-        "actor.user.name":              { "path": "$.actor.alternateId" },
-        "actor.user.uid":               { "path": "$.actor.id" },
-        "src_endpoint.ip":              { "path": "$.client.ipAddress" },
-        "src_endpoint.user_agent":      { "path": "$.client.userAgent.rawUserAgent" },
-        "service.name":                 { "const": "Okta" },
-        "is_remote":                    { "const": true },
-        "auth_protocol":                { "const": "Okta" },
-        "session.uid":                  { "path": "$.authenticationContext.externalSessionId" },
-        "message":                      { "path": "$.displayMessage" },
-        "raw_data":                     { "raw": true }
+        "metadata.version": {
+          "const": "1.9.0-dev"
+        },
+        "metadata.product.name": {
+          "const": "Okta"
+        },
+        "metadata.product.vendor_name": {
+          "const": "Okta"
+        },
+        "metadata.uid": {
+          "path": "$.uuid"
+        },
+        "metadata.logged_time": {
+          "time": "$.published",
+          "format": "iso8601"
+        },
+        "time": {
+          "time": "$.published",
+          "format": "iso8601"
+        },
+        "category_uid": {
+          "const": 3
+        },
+        "category_name": {
+          "const": "Identity & Access Management"
+        },
+        "class_uid": {
+          "const": 3002
+        },
+        "class_name": {
+          "const": "Authentication"
+        },
+        "activity_id": {
+          "const": 1
+        },
+        "activity_name": {
+          "const": "Logon"
+        },
+        "type_uid": {
+          "expr": "class_uid * 100 + activity_id"
+        },
+        "severity_id": {
+          "lookup": "$.severity",
+          "table": {
+            "INFO": 1,
+            "WARN": 3,
+            "ERROR": 4
+          },
+          "default": 1
+        },
+        "severity": {
+          "lookup": "$.severity",
+          "table": {
+            "INFO": "Informational",
+            "WARN": "Medium",
+            "ERROR": "High"
+          },
+          "default": "Informational"
+        },
+        "status_id": {
+          "lookup": "$.outcome.result",
+          "table": {
+            "SUCCESS": 1,
+            "FAILURE": 2,
+            "DENY": 2,
+            "ALLOW": 1
+          },
+          "default": 0
+        },
+        "status": {
+          "lookup": "$.outcome.result",
+          "table": {
+            "SUCCESS": "Success",
+            "FAILURE": "Failure",
+            "DENY": "Failure",
+            "ALLOW": "Success"
+          },
+          "default": "Unknown"
+        },
+        "status_detail": {
+          "path": "$.outcome.reason"
+        },
+        "user.name": {
+          "path": "$.actor.alternateId"
+        },
+        "user.uid": {
+          "path": "$.actor.id"
+        },
+        "user.type": {
+          "path": "$.actor.type"
+        },
+        "user.full_name": {
+          "path": "$.actor.displayName"
+        },
+        "actor.user.name": {
+          "path": "$.actor.alternateId"
+        },
+        "actor.user.uid": {
+          "path": "$.actor.id"
+        },
+        "src_endpoint.ip": {
+          "path": "$.client.ipAddress"
+        },
+        "src_endpoint.user_agent": {
+          "path": "$.client.userAgent.rawUserAgent"
+        },
+        "service.name": {
+          "const": "Okta"
+        },
+        "is_remote": {
+          "const": true
+        },
+        "auth_protocol": {
+          "const": "Okta"
+        },
+        "session.uid": {
+          "path": "$.authenticationContext.externalSessionId"
+        },
+        "message": {
+          "path": "$.displayMessage"
+        },
+        "raw_data": {
+          "raw": true
+        }
       }
     },
     "entity_management": {
       "mapping": {
-        "metadata.version":             { "const": "1.9.0-dev" },
-        "metadata.product.name":        { "const": "Okta" },
-        "metadata.product.vendor_name": { "const": "Okta" },
-        "metadata.uid":                 { "path": "$.uuid" },
-        "metadata.logged_time":         { "time": "$.published", "format": "iso8601" },
-        "time":                         { "time": "$.published", "format": "iso8601" },
-        "category_uid":                 { "const": 3 },
-        "category_name":                { "const": "Identity & Access Management" },
-        "class_uid":                    { "const": 3004 },
-        "class_name":                   { "const": "Entity Management" },
-        "activity_id":                  { "lookup": "$.eventType", "table": {"application.user_membership.add": 1, "application.user_membership.remove": 4}, "default": 99 },
-        "activity_name":                { "lookup": "$.eventType", "table": {"application.user_membership.add": "Create", "application.user_membership.remove": "Delete"}, "default": "Other" },
-        "type_uid":                     { "expr": "class_uid * 100 + activity_id" },
-        "severity_id":                  { "lookup": "$.severity", "table": {"INFO": 1, "WARN": 3, "ERROR": 4}, "default": 1 },
-        "severity":                     { "lookup": "$.severity", "table": {"INFO": "Informational", "WARN": "Medium", "ERROR": "High"}, "default": "Informational" },
-        "status_id":                    { "lookup": "$.outcome.result", "table": {"SUCCESS": 1, "FAILURE": 2}, "default": 0 },
-        "status":                       { "lookup": "$.outcome.result", "table": {"SUCCESS": "Success", "FAILURE": "Failure"}, "default": "Unknown" },
-        "actor.user.name":              { "path": "$.actor.alternateId" },
-        "actor.user.uid":               { "path": "$.actor.id" },
-        "src_endpoint.ip":              { "path": "$.client.ipAddress" },
-        "entity.name":                  { "path": "$.target.0.displayName" },
-        "entity.uid":                   { "path": "$.target.0.id" },
-        "entity.type":                  { "path": "$.target.0.type" },
-        "message":                      { "path": "$.displayMessage" },
-        "raw_data":                     { "raw": true }
+        "metadata.version": {
+          "const": "1.9.0-dev"
+        },
+        "metadata.product.name": {
+          "const": "Okta"
+        },
+        "metadata.product.vendor_name": {
+          "const": "Okta"
+        },
+        "metadata.uid": {
+          "path": "$.uuid"
+        },
+        "metadata.logged_time": {
+          "time": "$.published",
+          "format": "iso8601"
+        },
+        "time": {
+          "time": "$.published",
+          "format": "iso8601"
+        },
+        "category_uid": {
+          "const": 3
+        },
+        "category_name": {
+          "const": "Identity & Access Management"
+        },
+        "class_uid": {
+          "const": 3004
+        },
+        "class_name": {
+          "const": "Entity Management"
+        },
+        "activity_id": {
+          "lookup": "$.eventType",
+          "table": {
+            "application.user_membership.add": 1,
+            "application.user_membership.remove": 4
+          },
+          "default": 99
+        },
+        "activity_name": {
+          "lookup": "$.eventType",
+          "table": {
+            "application.user_membership.add": "Create",
+            "application.user_membership.remove": "Delete"
+          },
+          "default": "Other"
+        },
+        "type_uid": {
+          "expr": "class_uid * 100 + activity_id"
+        },
+        "severity_id": {
+          "lookup": "$.severity",
+          "table": {
+            "INFO": 1,
+            "WARN": 3,
+            "ERROR": 4
+          },
+          "default": 1
+        },
+        "severity": {
+          "lookup": "$.severity",
+          "table": {
+            "INFO": "Informational",
+            "WARN": "Medium",
+            "ERROR": "High"
+          },
+          "default": "Informational"
+        },
+        "status_id": {
+          "lookup": "$.outcome.result",
+          "table": {
+            "SUCCESS": 1,
+            "FAILURE": 2
+          },
+          "default": 0
+        },
+        "status": {
+          "lookup": "$.outcome.result",
+          "table": {
+            "SUCCESS": "Success",
+            "FAILURE": "Failure"
+          },
+          "default": "Unknown"
+        },
+        "actor.user.name": {
+          "path": "$.actor.alternateId"
+        },
+        "actor.user.uid": {
+          "path": "$.actor.id"
+        },
+        "src_endpoint.ip": {
+          "path": "$.client.ipAddress"
+        },
+        "entity.name": {
+          "path": "$.target.0.displayName"
+        },
+        "entity.uid": {
+          "path": "$.target.0.id"
+        },
+        "entity.type": {
+          "path": "$.target.0.type"
+        },
+        "message": {
+          "path": "$.displayMessage"
+        },
+        "raw_data": {
+          "raw": true
+        }
       }
     }
   }

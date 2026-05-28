@@ -1,38 +1,135 @@
 {
   "source_name": "falco_kernel",
+  "display_name": "Falco kernel events",
+  "vendor": "Sysdig",
+  "priority": "high",
+  "description": "Falco runtime detections for kernel module load/unload events.",
   "parser": "json",
   "routing": {
     "field": "$.rule",
-    "rules": [{ "default": true, "class": "kernel_activity" }]
+    "rules": [
+      {
+        "default": true,
+        "class": "kernel_activity"
+      }
+    ]
   },
   "classes": {
     "kernel_activity": {
       "mapping": {
-        "metadata.version":             { "const": "1.9.0-dev" },
-        "metadata.product.name":        { "const": "Falco" },
-        "metadata.product.vendor_name": { "const": "Sysdig" },
-        "metadata.logged_time":         { "time": "$.time", "format": "iso8601" },
-        "time":                         { "time": "$.time", "format": "iso8601" },
-        "category_uid":                 { "const": 1 },
-        "category_name":                { "const": "System Activity" },
-        "class_uid":                    { "const": 1003 },
-        "class_name":                   { "const": "Kernel Activity" },
-        "activity_id":                  { "lookup": "$.action", "table": {"create": 1, "read": 2, "delete": 3, "invoke": 4}, "default": 0 },
-        "activity_name":                { "lookup": "$.action", "table": {"create": "Create", "read": "Read", "delete": "Delete", "invoke": "Invoke"}, "default": "Unknown" },
-        "type_uid":                     { "expr": "class_uid * 100 + activity_id" },
-        "severity_id":                  { "lookup": "$.priority", "table": {"Informational": 1, "Notice": 2, "Warning": 3, "Error": 4, "Critical": 5, "Alert": 5, "Emergency": 5}, "default": 1 },
-        "severity":                     { "path": "$.priority" },
-        "device.hostname":              { "path": "$.hostname" },
-        "device.type_id":               { "const": 5 },
-        "device.type":                  { "const": "Server" },
-        "actor.user.name":              { "path": "$.user" },
-        "actor.process.name":           { "path": "$.proc_name" },
-        "actor.process.cmd_line":       { "path": "$.proc_cmdline" },
-        "kernel.name":                  { "path": "$.module" },
-        "kernel.type_id":               { "lookup": "$.kernel_type", "table": {"module": 2, "driver": 1, "file": 3}, "default": 99 },
-        "kernel.type":                  { "lookup": "$.kernel_type", "table": {"module": "Module", "driver": "Driver", "file": "File"}, "default": "Other" },
-        "message":                      { "path": "$.output" },
-        "raw_data":                     { "raw": true }
+        "metadata.version": {
+          "const": "1.9.0-dev"
+        },
+        "metadata.product.name": {
+          "const": "Falco"
+        },
+        "metadata.product.vendor_name": {
+          "const": "Sysdig"
+        },
+        "metadata.logged_time": {
+          "time": "$.time",
+          "format": "iso8601"
+        },
+        "time": {
+          "time": "$.time",
+          "format": "iso8601"
+        },
+        "category_uid": {
+          "const": 1
+        },
+        "category_name": {
+          "const": "System Activity"
+        },
+        "class_uid": {
+          "const": 1003
+        },
+        "class_name": {
+          "const": "Kernel Activity"
+        },
+        "activity_id": {
+          "lookup": "$.action",
+          "table": {
+            "create": 1,
+            "read": 2,
+            "delete": 3,
+            "invoke": 4
+          },
+          "default": 0
+        },
+        "activity_name": {
+          "lookup": "$.action",
+          "table": {
+            "create": "Create",
+            "read": "Read",
+            "delete": "Delete",
+            "invoke": "Invoke"
+          },
+          "default": "Unknown"
+        },
+        "type_uid": {
+          "expr": "class_uid * 100 + activity_id"
+        },
+        "severity_id": {
+          "lookup": "$.priority",
+          "table": {
+            "Informational": 1,
+            "Notice": 2,
+            "Warning": 3,
+            "Error": 4,
+            "Critical": 5,
+            "Alert": 5,
+            "Emergency": 5
+          },
+          "default": 1
+        },
+        "severity": {
+          "path": "$.priority"
+        },
+        "device.hostname": {
+          "path": "$.hostname"
+        },
+        "device.type_id": {
+          "const": 5
+        },
+        "device.type": {
+          "const": "Server"
+        },
+        "actor.user.name": {
+          "path": "$.user"
+        },
+        "actor.process.name": {
+          "path": "$.proc_name"
+        },
+        "actor.process.cmd_line": {
+          "path": "$.proc_cmdline"
+        },
+        "kernel.name": {
+          "path": "$.module"
+        },
+        "kernel.type_id": {
+          "lookup": "$.kernel_type",
+          "table": {
+            "module": 2,
+            "driver": 1,
+            "file": 3
+          },
+          "default": 99
+        },
+        "kernel.type": {
+          "lookup": "$.kernel_type",
+          "table": {
+            "module": "Module",
+            "driver": "Driver",
+            "file": "File"
+          },
+          "default": "Other"
+        },
+        "message": {
+          "path": "$.output"
+        },
+        "raw_data": {
+          "raw": true
+        }
       }
     }
   }

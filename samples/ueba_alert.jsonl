@@ -1,0 +1,4 @@
+{"alert_id":"ueba-1","timestamp":"2026-05-27T14:23:11Z","alert_type":"impossible_travel","severity":"high","user":"alice","src_ip":"203.0.113.42","baseline":"normal sign-in location: NYC; observed sign-in: Tokyo within 12 minutes"}
+{"alert_id":"ueba-2","timestamp":"2026-05-27T14:23:25Z","alert_type":"anomalous_data_download","severity":"medium","user":"bob","src_ip":"10.0.2.55","baseline":"daily average download: 12 MB; observed: 4.2 GB in last hour"}
+{"alert_id":"ueba-3","timestamp":"2026-05-27T14:23:42Z","alert_type":"new_admin_action","severity":"critical","user":"carol","src_ip":"10.0.3.15","baseline":"user has never performed admin actions before; observed: AssumeRole + IAM:AttachRolePolicy"}
+{"alert_id":"ueba-4","timestamp":"2026-05-27T14:24:01Z","alert_type":"unusual_hour_login","severity":"low","user":"dave","src_ip":"10.0.1.99","baseline":"typical hours: 09:00-18:00 local; observed: 03:21 local"}

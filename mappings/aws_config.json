@@ -1,36 +1,107 @@
 {
   "source_name": "aws_config",
+  "display_name": "AWS Config",
+  "vendor": "AWS",
+  "priority": "high",
+  "description": "AWS Config configuration item snapshots for cloud resources.",
   "parser": "json",
   "routing": {
     "field": "$.configurationItemStatus",
-    "rules": [{ "default": true, "class": "config_state" }]
+    "rules": [
+      {
+        "default": true,
+        "class": "config_state"
+      }
+    ]
   },
   "classes": {
     "config_state": {
       "mapping": {
-        "metadata.version":             { "const": "1.9.0-dev" },
-        "metadata.product.name":        { "const": "AWS Config" },
-        "metadata.product.vendor_name": { "const": "AWS" },
-        "metadata.uid":                 { "path": "$.configurationItemMD5Hash" },
-        "metadata.logged_time":         { "time": "$.configurationItemCaptureTime", "format": "iso8601" },
-        "time":                         { "time": "$.configurationItemCaptureTime", "format": "iso8601" },
-        "category_uid":                 { "const": 5 },
-        "category_name":                { "const": "Discovery" },
-        "class_uid":                    { "const": 5002 },
-        "class_name":                   { "const": "Device Config State" },
-        "activity_id":                  { "const": 1 },
-        "activity_name":                { "const": "Log" },
-        "type_uid":                     { "expr": "class_uid * 100 + activity_id" },
-        "severity_id":                  { "lookup": "$.configurationItemStatus", "table": {"OK": 1, "ResourceDiscovered": 1, "ResourceDeleted": 2, "ResourceNotRecorded": 3}, "default": 1 },
-        "severity":                     { "lookup": "$.configurationItemStatus", "table": {"OK": "Informational", "ResourceDiscovered": "Informational", "ResourceDeleted": "Low", "ResourceNotRecorded": "Medium"}, "default": "Informational" },
-        "device.uid":                   { "path": "$.resourceId" },
-        "device.name":                  { "path": "$.resourceName" },
-        "device.type":                  { "path": "$.resourceType" },
-        "device.type_id":               { "const": 99 },
-        "cloud.provider":               { "const": "AWS" },
-        "cloud.account.uid":            { "path": "$.awsAccountId" },
-        "cloud.region":                 { "path": "$.awsRegion" },
-        "raw_data":                     { "raw": true }
+        "metadata.version": {
+          "const": "1.9.0-dev"
+        },
+        "metadata.product.name": {
+          "const": "AWS Config"
+        },
+        "metadata.product.vendor_name": {
+          "const": "AWS"
+        },
+        "metadata.uid": {
+          "path": "$.configurationItemMD5Hash"
+        },
+        "metadata.logged_time": {
+          "time": "$.configurationItemCaptureTime",
+          "format": "iso8601"
+        },
+        "time": {
+          "time": "$.configurationItemCaptureTime",
+          "format": "iso8601"
+        },
+        "category_uid": {
+          "const": 5
+        },
+        "category_name": {
+          "const": "Discovery"
+        },
+        "class_uid": {
+          "const": 5002
+        },
+        "class_name": {
+          "const": "Device Config State"
+        },
+        "activity_id": {
+          "const": 1
+        },
+        "activity_name": {
+          "const": "Log"
+        },
+        "type_uid": {
+          "expr": "class_uid * 100 + activity_id"
+        },
+        "severity_id": {
+          "lookup": "$.configurationItemStatus",
+          "table": {
+            "OK": 1,
+            "ResourceDiscovered": 1,
+            "ResourceDeleted": 2,
+            "ResourceNotRecorded": 3
+          },
+          "default": 1
+        },
+        "severity": {
+          "lookup": "$.configurationItemStatus",
+          "table": {
+            "OK": "Informational",
+            "ResourceDiscovered": "Informational",
+            "ResourceDeleted": "Low",
+            "ResourceNotRecorded": "Medium"
+          },
+          "default": "Informational"
+        },
+        "device.uid": {
+          "path": "$.resourceId"
+        },
+        "device.name": {
+          "path": "$.resourceName"
+        },
+        "device.type": {
+          "path": "$.resourceType"
+        },
+        "device.type_id": {
+          "const": 99
+        },
+        "cloud.provider": {
+          "const": "AWS"
+        },
+        "cloud.account.uid": {
+          "path": "$.awsAccountId"
+        },
+        "cloud.region": {
+          "path": "$.awsRegion"
+        },
+        "raw_data": {
+          "raw": true
+        }
       }
     }
   }

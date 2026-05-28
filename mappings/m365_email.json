@@ -1,38 +1,133 @@
 {
   "source_name": "m365_email",
+  "display_name": "Microsoft 365 / Exchange Online",
+  "vendor": "Microsoft",
+  "priority": "high",
+  "description": "Exchange Online message trace: send, receive, quarantine, block.",
   "parser": "json",
   "routing": {
     "field": "$.direction",
-    "rules": [{ "default": true, "class": "email_activity" }]
+    "rules": [
+      {
+        "default": true,
+        "class": "email_activity"
+      }
+    ]
   },
   "classes": {
     "email_activity": {
       "mapping": {
-        "metadata.version":             { "const": "1.9.0-dev" },
-        "metadata.product.name":        { "const": "Exchange Online" },
-        "metadata.product.vendor_name": { "const": "Microsoft" },
-        "metadata.uid":                 { "path": "$.message_id" },
-        "metadata.logged_time":         { "time": "$.received_time", "format": "iso8601" },
-        "time":                         { "time": "$.received_time", "format": "iso8601" },
-        "category_uid":                 { "const": 4 },
-        "category_name":                { "const": "Network Activity" },
-        "class_uid":                    { "const": 4009 },
-        "class_name":                   { "const": "Email Activity" },
-        "activity_id":                  { "lookup": "$.direction", "table": {"Outbound": 1, "Inbound": 2}, "default": 0 },
-        "activity_name":                { "lookup": "$.direction", "table": {"Outbound": "Send", "Inbound": "Receive"}, "default": "Unknown" },
-        "type_uid":                     { "expr": "class_uid * 100 + activity_id" },
-        "direction_id":                 { "lookup": "$.direction", "table": {"Inbound": 1, "Outbound": 2}, "default": 0 },
-        "direction":                    { "lookup": "$.direction", "table": {"Inbound": "Inbound", "Outbound": "Outbound"}, "default": "Unknown" },
-        "severity_id":                  { "const": 1 },
-        "severity":                     { "const": "Informational" },
-        "status_id":                    { "lookup": "$.status", "table": {"Delivered": 1, "Quarantined": 2, "Failed": 2, "Blocked": 2}, "default": 0 },
-        "status":                       { "lookup": "$.status", "table": {"Delivered": "Success", "Quarantined": "Failure", "Failed": "Failure", "Blocked": "Failure"}, "default": "Unknown" },
-        "email.from":                   { "path": "$.sender" },
-        "email.to":                     { "path": "$.recipients" },
-        "email.subject":                { "path": "$.subject" },
-        "email.message_uid":            { "path": "$.message_id" },
-        "email.size":                   { "int": "$.size_bytes" },
-        "raw_data":                     { "raw": true }
+        "metadata.version": {
+          "const": "1.9.0-dev"
+        },
+        "metadata.product.name": {
+          "const": "Exchange Online"
+        },
+        "metadata.product.vendor_name": {
+          "const": "Microsoft"
+        },
+        "metadata.uid": {
+          "path": "$.message_id"
+        },
+        "metadata.logged_time": {
+          "time": "$.received_time",
+          "format": "iso8601"
+        },
+        "time": {
+          "time": "$.received_time",
+          "format": "iso8601"
+        },
+        "category_uid": {
+          "const": 4
+        },
+        "category_name": {
+          "const": "Network Activity"
+        },
+        "class_uid": {
+          "const": 4009
+        },
+        "class_name": {
+          "const": "Email Activity"
+        },
+        "activity_id": {
+          "lookup": "$.direction",
+          "table": {
+            "Outbound": 1,
+            "Inbound": 2
+          },
+          "default": 0
+        },
+        "activity_name": {
+          "lookup": "$.direction",
+          "table": {
+            "Outbound": "Send",
+            "Inbound": "Receive"
+          },
+          "default": "Unknown"
+        },
+        "type_uid": {
+          "expr": "class_uid * 100 + activity_id"
+        },
+        "direction_id": {
+          "lookup": "$.direction",
+          "table": {
+            "Inbound": 1,
+            "Outbound": 2
+          },
+          "default": 0
+        },
+        "direction": {
+          "lookup": "$.direction",
+          "table": {
+            "Inbound": "Inbound",
+            "Outbound": "Outbound"
+          },
+          "default": "Unknown"
+        },
+        "severity_id": {
+          "const": 1
+        },
+        "severity": {
+          "const": "Informational"
+        },
+        "status_id": {
+          "lookup": "$.status",
+          "table": {
+            "Delivered": 1,
+            "Quarantined": 2,
+            "Failed": 2,
+            "Blocked": 2
+          },
+          "default": 0
+        },
+        "status": {
+          "lookup": "$.status",
+          "table": {
+            "Delivered": "Success",
+            "Quarantined": "Failure",
+            "Failed": "Failure",
+            "Blocked": "Failure"
+          },
+          "default": "Unknown"
+        },
+        "email.from": {
+          "path": "$.sender"
+        },
+        "email.to": {
+          "path": "$.recipients"
+        },
+        "email.subject": {
+          "path": "$.subject"
+        },
+        "email.message_uid": {
+          "path": "$.message_id"
+        },
+        "email.size": {
+          "int": "$.size_bytes"
+        },
+        "raw_data": {
+          "raw": true
+        }
       }
     }
   }

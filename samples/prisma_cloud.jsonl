@@ -1,0 +1,3 @@
+{"alertId":"alert-pc-1","time":"2026-05-27T14:23:11Z","resource":{"id":"i-0a1b2c3d","name":"web-prod-instance","type":"aws-ec2-instance","cloudType":"aws"},"policy":{"name":"Security group allows 0.0.0.0/0 on port 22","severity":"high"},"status":"open"}
+{"alertId":"alert-pc-2","time":"2026-05-27T14:23:18Z","resource":{"id":"s3://logs-prod","name":"logs-prod","type":"aws-s3-bucket","cloudType":"aws"},"policy":{"name":"S3 bucket allows public read","severity":"medium"},"status":"open"}
+{"alertId":"alert-pc-3","time":"2026-05-27T14:23:25Z","resource":{"id":"projects/proj-42/databases/(default)","name":"firestore-default","type":"gcp-firestore","cloudType":"gcp"},"policy":{"name":"Firestore allows unauthenticated reads","severity":"critical"},"status":"open"}
