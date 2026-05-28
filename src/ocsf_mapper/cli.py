@@ -135,6 +135,36 @@ def cmd_generate(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_tail(args: argparse.Namespace) -> int:
+    """``tail -f``-style live mapping. Ctrl+C to stop."""
+    config = _load_mapping(args.mapping)
+    sink_kind = args.sink or infer_kind(args.output)
+    sink_path = None if sink_kind == "stdout" else args.output
+    if sink_kind != "stdout" and sink_path is None:
+        print(f"error: --sink {sink_kind} requires an output path", file=sys.stderr)
+        return 2
+    from ocsf_mapper.stream import stream_apply
+
+    print(
+        f"tailing {args.input} → {sink_kind} (Ctrl+C to stop)",
+        file=sys.stderr,
+    )
+    import threading
+    stop = threading.Event()
+    try:
+        with get_sink(sink_kind, sink_path) as sink:
+            stream_apply(
+                config, args.input, sink,
+                poll_interval=args.poll_interval,
+                from_start=args.from_start,
+                stop=stop,
+            )
+    except KeyboardInterrupt:
+        stop.set()
+        print(file=sys.stderr)  # newline after ^C
+    return 0
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     try:
         import uvicorn
@@ -208,6 +238,22 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--provider", choices=["anthropic", "openai", "fixture"],
                     help="Force LLM provider (default: env-detect).")
     sp.set_defaults(func=cmd_generate)
+
+    # tail
+    sp = sub.add_parser("tail",
+                        help="tail -f a log file and emit OCSF events live.")
+    sp.add_argument("mapping", help="Path to a mappings/<name>.json file.")
+    sp.add_argument("input",   help="Path to the log file to tail.")
+    sp.add_argument("output",  nargs="?", default=None,
+                    help="Output path. Omit or use '-' for stdout (JSONL).")
+    sp.add_argument("--sink",
+                    choices=["jsonl", "csv", "parquet", "security-lake", "stdout"],
+                    help="Force sink kind (default: infer from output).")
+    sp.add_argument("--poll-interval", type=float, default=0.5,
+                    help="Polling interval in seconds when there are no new lines.")
+    sp.add_argument("--from-start", action="store_true",
+                    help="Begin from the start of the file (default: from EOF).")
+    sp.set_defaults(func=cmd_tail)
 
     # serve
     sp = sub.add_parser("serve", help="Run the local web UI (Phase B).")
