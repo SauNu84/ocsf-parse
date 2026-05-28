@@ -37,6 +37,9 @@ ocsf-mapper validate out.jsonl authentication
 
 # CI gate — lint every mapping against its pinned sample
 ocsf-mapper lint                       # exits 0 iff all mappings pass
+
+# LLM-assisted mapping draft (needs ANTHROPIC_API_KEY or OPENAI_API_KEY)
+ocsf-mapper generate suricata_v2 samples/my_new_log.jsonl mappings/my_new_log.json
 ```
 
 If you cloned without `--recurse-submodules`:
@@ -107,8 +110,8 @@ Phase C (the LLM-assisted generator) will automate steps 1–4. See the plan.
       29 reference mappings, master-data catalog, GitHub Actions CI.
 - [ ] **Phase B — Web UI** (FastAPI + HTMX + Monaco): per-source detail page,
       live drop-log-to-OCSF flow, mapping editor.
-- [ ] **Phase C — LLM wizard**: Anthropic / OpenAI provider abstraction;
-      `ocsf-mapper generate <source> <sample>` produces a draft mapping.
+- [x] **Phase C scaffolding — LLM provider abstraction + `ocsf-mapper generate`**:
+      Anthropic / OpenAI / fixture providers. UI wizard still pending.
 - [ ] **Phase D — Polish**: coverage report, schema-bump diff, stream/tail mode,
       Parquet partitioning for Security Lake compatibility.
 

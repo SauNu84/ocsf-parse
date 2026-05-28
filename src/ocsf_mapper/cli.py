@@ -120,6 +120,21 @@ def cmd_lint(args: argparse.Namespace) -> int:
     return lint_main(args.folder)
 
 
+def cmd_generate(args: argparse.Namespace) -> int:
+    from ocsf_mapper.generate import generate
+    from ocsf_mapper.providers import get_provider
+
+    provider = get_provider(name=args.provider) if args.provider else get_provider()
+    config = generate(args.sample, args.source, provider=provider)
+    output = json.dumps(config, indent=2)
+    if args.output and args.output != "-":
+        Path(args.output).write_text(output + "\n")
+        print(f"wrote mapping for {args.source!r} -> {args.output}", file=sys.stderr)
+    else:
+        print(output)
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # parser
 # ---------------------------------------------------------------------------
@@ -160,6 +175,16 @@ def build_parser() -> argparse.ArgumentParser:
     sp = sub.add_parser("lint", help="Run all mappings against their pinned samples.")
     sp.add_argument("folder", nargs="?", default="mappings", help="Mappings folder.")
     sp.set_defaults(func=cmd_lint)
+
+    # generate
+    sp = sub.add_parser("generate", help="LLM-draft a new mapping from a sample.")
+    sp.add_argument("source", help="Short source name (e.g. 'suricata_alert').")
+    sp.add_argument("sample", help="Path to a sample log file.")
+    sp.add_argument("output", nargs="?", default=None,
+                    help="Output path for the draft mapping (default: stdout).")
+    sp.add_argument("--provider", choices=["anthropic", "openai", "fixture"],
+                    help="Force LLM provider (default: env-detect).")
+    sp.set_defaults(func=cmd_generate)
 
     return p
 

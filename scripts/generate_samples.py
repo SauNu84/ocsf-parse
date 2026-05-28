@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import json
 import random
-import secrets
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable
@@ -21,6 +20,23 @@ random.seed(20260527)
 REPO = Path(__file__).resolve().parents[1]
 SAMPLES = REPO / "samples"
 COUNT = 100  # events per source
+
+
+# `secrets.token_*` is non-deterministic (uses os.urandom). To keep this
+# generator reproducible from the seed alone, we substitute random-backed
+# replacements for ID-shaped strings.
+_HEX = "0123456789abcdef"
+_URLSAFE = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+
+
+def token_hex(n_bytes: int) -> str:
+    """Drop-in for ``token_hex``; uses the seeded ``random`` module."""
+    return "".join(random.choices(_HEX, k=n_bytes * 2))
+
+
+def token_urlsafe(n_bytes: int) -> str:
+    """Drop-in for ``token_urlsafe``."""
+    return "".join(random.choices(_URLSAFE, k=n_bytes))
 
 
 # ---------------------------------------------------------------------------
@@ -122,7 +138,7 @@ def gen_sshd() -> list[str]:
             outcome, method = "Accepted", pick(["publickey", "password"])
             ip = pick(IPS_INT)
             port = random.randint(40000, 65000)
-            tail = ": RSA SHA256:" + secrets.token_urlsafe(20) if method == "publickey" else ""
+            tail = ": RSA SHA256:" + token_urlsafe(20) if method == "publickey" else ""
             out.append(f"{ts} {host} sshd[{pid}]: {outcome} {method} for {user} from {ip} port {port} ssh2{tail}")
         elif roll < 0.9:
             user = pick(USERS_BAD + USERS_OK)
@@ -182,7 +198,7 @@ def gen_cloudflare() -> list[str]:
             "EdgeResponseBytes": random.randint(0, 16384),
             "EdgeStartTimestamp": ts,
             "EdgeEndTimestamp": ts,
-            "RayID": secrets.token_hex(8),
+            "RayID": token_hex(8),
             "WAFAction": waf,
         }
         out.append(json.dumps(ev))
@@ -219,14 +235,14 @@ def gen_cloudtrail() -> list[str]:
                 "sourceIPAddress": pick(IPS_EXT),
                 "userIdentity": {
                     "type": "IAMUser",
-                    "principalId": "AIDA" + secrets.token_hex(8).upper(),
+                    "principalId": "AIDA" + token_hex(8).upper(),
                     "arn": f"arn:aws:iam::123456789012:user/{pick(USERS_OK)}",
                     "accountId": "123456789012",
                     "userName": pick(USERS_OK),
                 },
                 "responseElements": {"ConsoleLogin": pick(["Success", "Success", "Failure"])},
                 "additionalEventData": {"MFAUsed": pick(["Yes", "No"])},
-                "eventID": secrets.token_hex(16),
+                "eventID": token_hex(16),
                 "recipientAccountId": "123456789012",
             }
         else:
@@ -241,16 +257,34 @@ def gen_cloudtrail() -> list[str]:
                 "sourceIPAddress": pick(IPS_EXT + IPS_INT),
                 "userIdentity": {
                     "type": pick(["IAMUser", "AssumedRole"]),
-                    "principalId": "AIDA" + secrets.token_hex(8).upper(),
+                    "principalId": "AIDA" + token_hex(8).upper(),
                     "arn": f"arn:aws:iam::123456789012:user/{pick(USERS_OK)}",
                     "accountId": "123456789012",
                     "userName": pick(USERS_OK),
                 },
                 "requestParameters": {"bucketName": "example-bucket"} if "s3" in src else {},
                 "responseElements": None if failed else {"ok": True},
-                "eventID": secrets.token_hex(16),
+                "eventID": token_hex(16),
                 "recipientAccountId": "123456789012",
             }
+            # ~40% of API events include a `resources[]` array. Multi-resource
+            # events exercise the for_each op in the mapping.
+            if random.random() < 0.4:
+                n = random.choice([1, 1, 2, 3])
+                rtype = {"s3.amazonaws.com": "AWS::S3::Object",
+                         "ec2.amazonaws.com": "AWS::EC2::Instance",
+                         "iam.amazonaws.com": "AWS::IAM::Role",
+                         "sts.amazonaws.com": "AWS::IAM::Role",
+                         "kms.amazonaws.com": "AWS::KMS::Key",
+                         "logs.amazonaws.com": "AWS::Logs::LogGroup"}.get(src, "AWS::Resource")
+                ev["resources"] = [
+                    {
+                        "ARN": f"arn:aws:{src.split('.')[0]}::{ev['userIdentity']['accountId']}:resource/{token_hex(6)}",
+                        "accountId": ev["userIdentity"]["accountId"],
+                        "type": rtype,
+                    }
+                    for _ in range(n)
+                ]
             if failed:
                 ev["errorCode"] = pick(["AccessDenied", "NoSuchBucket", "Throttling"])
                 ev["errorMessage"] = "request failed"
@@ -269,10 +303,10 @@ def gen_okta() -> list[str]:
             "application.user_membership.add",
             "application.user_membership.remove",
         ])
-        actor_id = "00u" + secrets.token_hex(8).lower()
+        actor_id = "00u" + token_hex(8).lower()
         outcome = pick(["SUCCESS", "SUCCESS", "SUCCESS", "FAILURE"])
         ev = {
-            "uuid": secrets.token_hex(16),
+            "uuid": token_hex(16),
             "published": ts,
             "eventType": event_type,
             "severity": pick(["INFO", "INFO", "WARN", "ERROR"]),
@@ -292,10 +326,10 @@ def gen_okta() -> list[str]:
                 "userAgent": {"rawUserAgent": pick(USER_AGENTS)},
             },
             "outcome": {"result": outcome, "reason": None if outcome == "SUCCESS" else "INVALID_CREDENTIALS"},
-            "authenticationContext": {"externalSessionId": secrets.token_hex(16)},
+            "authenticationContext": {"externalSessionId": token_hex(16)},
             "target": [
                 {
-                    "id": "0oa" + secrets.token_hex(8).lower(),
+                    "id": "0oa" + token_hex(8).lower(),
                     "type": "AppInstance",
                     "displayName": pick(["Slack", "GitHub", "Salesforce", "Datadog"]),
                 }

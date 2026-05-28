@@ -156,4 +156,26 @@ def apply_op(
         except Exception:
             return None
 
+    if "for_each" in op:
+        # Iterate over an array in the record and build one sub-object per item.
+        # The iteration variable is bound under the name in `as` (default: "item")
+        # and is reachable from nested ops via `$.<as>...`.
+        items = resolve_expr(op["for_each"], record)
+        if not isinstance(items, list):
+            return None
+        as_name = op.get("as", "item")
+        sub_map = op.get("map", {})
+        out: list = []
+        for item in items:
+            sub_record = {**dict(record), as_name: item}
+            sub_event: dict = {}
+            sub_already_set: dict = {}
+            for target, sub_op in sub_map.items():
+                val = apply_op(sub_op, sub_record, sub_already_set)
+                set_path(sub_event, target, val)
+                if "." not in target and isinstance(val, (int, float, str)):
+                    sub_already_set[target] = val
+            out.append(sub_event)
+        return out
+
     raise ValueError(f"unknown op: {op!r}")

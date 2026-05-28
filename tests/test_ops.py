@@ -228,3 +228,55 @@ def test_op_expr_unknown_var_returns_none():
 def test_op_unknown_raises():
     with pytest.raises(ValueError):
         apply_op({"chimera": True}, {})
+
+
+# ---------------------------------------------------------------------------
+# for_each
+# ---------------------------------------------------------------------------
+
+
+def test_op_for_each_builds_list_of_objects():
+    rec = {"resources": [{"ARN": "arn:a", "type": "S3"}, {"ARN": "arn:b", "type": "EC2"}]}
+    op = {
+        "for_each": "$.resources",
+        "as": "r",
+        "map": {
+            "name": {"path": "$.r.ARN"},
+            "type": {"path": "$.r.type"},
+        },
+    }
+    out = apply_op(op, rec)
+    assert out == [{"name": "arn:a", "type": "S3"}, {"name": "arn:b", "type": "EC2"}]
+
+
+def test_op_for_each_returns_none_when_not_a_list():
+    op = {"for_each": "$.x", "as": "r", "map": {"a": {"const": 1}}}
+    assert apply_op(op, {}) is None
+    assert apply_op(op, {"x": "not_a_list"}) is None
+
+
+def test_op_for_each_default_as_name_is_item():
+    rec = {"xs": [1, 2, 3]}
+    op = {"for_each": "$.xs", "map": {"v": {"path": "$.item"}}}
+    assert apply_op(op, rec) == [{"v": 1}, {"v": 2}, {"v": 3}]
+
+
+def test_op_for_each_can_see_outer_record_too():
+    rec = {"region": "us-east-1", "items": [{"id": "x"}, {"id": "y"}]}
+    op = {
+        "for_each": "$.items",
+        "as": "i",
+        "map": {
+            "uid":    {"path": "$.i.id"},
+            "region": {"path": "$.region"},
+        },
+    }
+    assert apply_op(op, rec) == [
+        {"uid": "x", "region": "us-east-1"},
+        {"uid": "y", "region": "us-east-1"},
+    ]
+
+
+def test_op_for_each_empty_list_yields_empty_list():
+    op = {"for_each": "$.xs", "as": "x", "map": {"v": {"const": 1}}}
+    assert apply_op(op, {"xs": []}) == []
