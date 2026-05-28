@@ -27,6 +27,12 @@
           hx-on:click="document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));this.classList.add('active');document.getElementById('tabpanel').innerHTML=document.getElementById('output-tab').innerHTML">
     Output
   </button>
+  <button class="tab"
+          hx-get="/sources/{{ name }}/mapping"
+          hx-target="#tabpanel"
+          hx-on::after-request="document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));this.classList.add('active')">
+    Mapping
+  </button>
 </nav>
 
 <section id="tabpanel" class="tabpanel"

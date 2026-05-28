@@ -1,0 +1,11 @@
+{% if ok %}
+<div class="save-ok">
+  ✓ Saved. Re-linted {{ events }} event(s) across class(es): {{ classes|join(', ') }}.
+</div>
+{% else %}
+<div class="save-error">
+  <strong>✗ Save rejected — mapping did not lint clean:</strong>
+  <ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
+  <p class="hint">Your edits are still in the editor; fix the issues and try again.</p>
+</div>
+{% endif %}

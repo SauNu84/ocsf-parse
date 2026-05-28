@@ -228,3 +228,50 @@ footer {
 .error  { color: var(--fail); }
 
 .empty { color: var(--fg-muted); padding: 20px; text-align: center; }
+
+/* ---- mapping editor (step 1) -------------------------------------- */
+
+.mapping-tab .editor-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.mapping-tab .hint { color: var(--fg-muted); font-size: 12px; }
+.btn-primary {
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+}
+.btn-primary:hover { filter: brightness(1.1); }
+
+#monaco-host {
+  height: 540px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.save-result { margin-bottom: 8px; }
+.save-ok {
+  background: #dafbe1;
+  border: 1px solid #2da44e;
+  color: #1a7f37;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+.save-error {
+  background: #ffebe9;
+  border: 1px solid var(--fail);
+  color: var(--fail);
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+.save-error ul { margin: 6px 0 0 0; padding-left: 20px; }
+.save-error .hint { color: var(--fg-muted); margin: 6px 0 0; }

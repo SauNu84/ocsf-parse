@@ -18,7 +18,7 @@ import json
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Request, UploadFile, File
+from fastapi import FastAPI, Form, HTTPException, Request, UploadFile, File
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -182,6 +182,68 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
                 "fail": sum(1 for r in results if r.get("error")),
             },
         )
+
+    @app.get("/sources/{name}/mapping", response_class=HTMLResponse)
+    def source_mapping(name: str, request: Request) -> HTMLResponse:
+        cfg = _mapping_or_404(name)
+        return templates.TemplateResponse(
+            request,
+            "partials/mapping_editor.html",
+            {
+                "name": name,
+                "mapping_json": json.dumps(cfg, indent=2),
+            },
+        )
+
+    @app.post("/sources/{name}/save", response_class=HTMLResponse)
+    def source_save(name: str, request: Request, content: str = Form(...)) -> HTMLResponse:
+        path = mappings_dir / f"{name}.json"
+        if not path.exists():
+            raise HTTPException(status_code=404, detail=f"unknown source: {name}")
+
+        # 1. JSON syntax check
+        try:
+            parsed = json.loads(content)
+        except json.JSONDecodeError as e:
+            return templates.TemplateResponse(
+                request,
+                "partials/save_result.html",
+                {"ok": False, "errors": [f"invalid JSON: {e}"]},
+                status_code=400,
+            )
+
+        # 2. Server-side lint: write to a sibling tmp file, run lint_one against
+        #    the pinned sample, only promote to the real file if the result is OK.
+        sample_path = _find_sample_path(name)
+        tmp_path = path.with_suffix(".json.tmp")
+        tmp_path.write_text(json.dumps(parsed, indent=2) + "\n")
+        try:
+            result = lint_one(tmp_path, sample_path, schema)
+            if result["status"] != "OK":
+                return templates.TemplateResponse(
+                    request,
+                    "partials/save_result.html",
+                    {"ok": False, "errors": result["errors"] or [result["status"]]},
+                    status_code=400,
+                )
+            tmp_path.replace(path)
+        finally:
+            if tmp_path.exists():
+                tmp_path.unlink()
+
+        return templates.TemplateResponse(
+            request,
+            "partials/save_result.html",
+            {"ok": True, "errors": [],
+             "events": result.get("events", 0),
+             "classes": result.get("classes", [])},
+        )
+
+    def _find_sample_path(name: str) -> Optional[Path]:
+        for entry in list_mappings(mappings_dir):
+            if entry["name"] == name and entry["sample"]:
+                return Path(entry["sample"])
+        return None
 
     return app
 

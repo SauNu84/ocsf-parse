@@ -336,10 +336,18 @@
           "for_each": "$.resources",
           "as": "r",
           "map": {
-            "uid":      { "path": "$.r.ARN" },
-            "name":     { "path": "$.r.ARN" },
-            "type":     { "path": "$.r.type" },
-            "owner":    { "path": "$.r.accountId" }
+            "uid": {
+              "path": "$.r.ARN"
+            },
+            "name": {
+              "path": "$.r.ARN"
+            },
+            "type": {
+              "path": "$.r.type"
+            },
+            "owner": {
+              "path": "$.r.accountId"
+            }
           }
         },
         "raw_data": {

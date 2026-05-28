@@ -1,0 +1,50 @@
+<div class="mapping-tab">
+  <div class="editor-toolbar">
+    <span class="hint">Edit the mapping JSON. Save runs the linter against the pinned sample.</span>
+    <button class="btn-primary" onclick="ocsfSaveMapping('{{ name }}')">Save</button>
+  </div>
+  <div id="save-result" class="save-result"></div>
+  <div id="monaco-host" data-initial="{{ mapping_json|e }}"></div>
+</div>
+
+<link rel="stylesheet" data-name="vs/editor/editor.main"
+      href="https://cdn.jsdelivr.net/npm/monaco-editor@0.46.0/min/vs/editor/editor.main.css">
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.46.0/min/vs/loader.js"></script>
+<script>
+  // Initialise Monaco for the JSON editor, then expose a save helper that
+  // POSTs the current buffer to /sources/<name>/save via fetch (multipart
+  // form-data so FastAPI's Form(...) extractor receives it).
+  (function() {
+    var host = document.getElementById('monaco-host');
+    if (!host) return;
+    var initial = host.dataset.initial || '{}';
+
+    require.config({ paths: { 'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.46.0/min/vs' }});
+    require(['vs/editor/editor.main'], function() {
+      window.__ocsfEditor = monaco.editor.create(host, {
+        value: initial,
+        language: 'json',
+        automaticLayout: true,
+        minimap: { enabled: false },
+        scrollBeyondLastLine: false,
+        fontSize: 12,
+      });
+    });
+
+    window.ocsfSaveMapping = function(name) {
+      if (!window.__ocsfEditor) return;
+      var content = window.__ocsfEditor.getValue();
+      var fd = new FormData();
+      fd.append('content', content);
+      fetch('/sources/' + encodeURIComponent(name) + '/save', { method: 'POST', body: fd })
+        .then(function(r) { return r.text().then(function(t) { return { html: t, ok: r.ok }; }); })
+        .then(function(res) {
+          document.getElementById('save-result').innerHTML = res.html;
+        })
+        .catch(function(err) {
+          document.getElementById('save-result').innerHTML =
+            '<div class="save-error">network error: ' + err + '</div>';
+        });
+    };
+  })();
+</script>

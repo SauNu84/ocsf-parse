@@ -84,3 +84,56 @@ def test_static_files_served(client):
     r = client.get("/static/main.css")
     assert r.status_code == 200
     assert "card-grid" in r.text or "badge" in r.text
+
+
+# ---------------------------------------------------------------------------
+# Step 1: Mapping editor tab + save with server-side lint
+# ---------------------------------------------------------------------------
+
+
+def test_mapping_editor_partial_loads(client):
+    r = client.get("/sources/cloudtrail/mapping")
+    assert r.status_code == 200
+    assert "monaco-host" in r.text
+    assert "cloudtrail" in r.text
+    assert "Save" in r.text
+
+
+def test_save_rejects_invalid_json(client):
+    r = client.post("/sources/cloudtrail/save", data={"content": "{not valid"})
+    assert r.status_code == 400
+    assert "invalid JSON" in r.text
+
+
+def test_save_rejects_lint_failure(client):
+    import json as _j
+    bad = {
+        "parser": "json",
+        "classes": {
+            "authentication": {"mapping": {"class_uid": {"const": 3002}}}
+        },
+    }
+    r = client.post("/sources/cloudtrail/save", data={"content": _j.dumps(bad)})
+    assert r.status_code == 400
+    assert "Save rejected" in r.text
+
+
+def test_save_accepts_clean_mapping(tmp_path, repo_root):
+    """Isolated copy of repo so we don't mutate the real mappings/."""
+    import shutil, json as _j
+    isolated = tmp_path / "repo"
+    shutil.copytree(repo_root / "mappings", isolated / "mappings")
+    shutil.copytree(repo_root / "samples", isolated / "samples")
+    shutil.copy(repo_root / "catalog.json", isolated / "catalog.json")
+    iso_client = TestClient(create_app(root=isolated))
+
+    current = _j.loads((isolated / "mappings/okta.json").read_text())
+    r = iso_client.post("/sources/okta/save", data={"content": _j.dumps(current)})
+    assert r.status_code == 200, r.text
+    assert "Saved" in r.text
+    assert _j.loads((isolated / "mappings/okta.json").read_text())["source_name"] == "okta"
+
+
+def test_save_404_for_unknown_source(client):
+    r = client.post("/sources/totally_made_up/save", data={"content": "{}"})
+    assert r.status_code == 404
