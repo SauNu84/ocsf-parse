@@ -168,8 +168,13 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("input",   help="Path to the log file, or '-' for stdin.")
     sp.add_argument("output",  nargs="?", default=None,
                     help="Output path. Omit or use '-' for stdout (JSONL).")
-    sp.add_argument("--sink", choices=["jsonl", "csv", "parquet", "stdout"],
-                    help="Force sink kind (default: infer from output extension).")
+    sp.add_argument(
+        "--sink",
+        choices=["jsonl", "csv", "parquet", "security-lake", "stdout"],
+        help="Force sink kind (default: infer from output extension). "
+             "'security-lake' writes partitioned Parquet to "
+             "<output>/<class_uid>/eventDay=YYYYMMDD/*.parquet.",
+    )
     sp.set_defaults(func=cmd_apply)
 
     # validate

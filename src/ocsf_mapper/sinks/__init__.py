@@ -28,10 +28,12 @@ __all__ = ["Sink", "JsonlSink", "CsvSink", "StdoutSink", "get_sink", "infer_kind
 
 
 def get_sink(kind: str, path: Optional[Path | str] = None, **kwargs) -> Sink:
-    """Return a concrete sink for ``kind`` (``"jsonl"``, ``"csv"``, ``"parquet"``, ``"stdout"``).
+    """Return a concrete sink for ``kind``.
 
-    ``ParquetSink`` is imported lazily so the optional ``pyarrow`` dep is only
-    required when actually requested.
+    Supported kinds: ``jsonl`` | ``csv`` | ``parquet`` | ``security-lake`` | ``stdout``.
+
+    The Parquet-backed sinks are imported lazily so the optional ``pyarrow``
+    dep is only required when actually requested.
     """
     kind = kind.lower()
     if kind == "stdout":
@@ -45,8 +47,12 @@ def get_sink(kind: str, path: Optional[Path | str] = None, **kwargs) -> Sink:
     if kind == "parquet":
         from ocsf_mapper.sinks.parquet import ParquetSink  # lazy: optional dep
         return ParquetSink(path, **kwargs)
+    if kind in ("security-lake", "security_lake"):
+        from ocsf_mapper.sinks.security_lake import SecurityLakeSink
+        return SecurityLakeSink(path, **kwargs)
     raise ValueError(
-        f"unknown sink kind: {kind!r} (expected jsonl/csv/parquet/stdout)"
+        f"unknown sink kind: {kind!r} "
+        f"(expected jsonl/csv/parquet/security-lake/stdout)"
     )
 
 

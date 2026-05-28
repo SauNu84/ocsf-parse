@@ -137,3 +137,53 @@ def test_parquet_sink_roundtrip_when_available(tmp_path):
         s.write_many([SAMPLE, SAMPLE])
     table = pq.read_table(p)
     assert table.num_rows == 2
+
+
+# ---------------------------------------------------------------------------
+# Security Lake-partitioned Parquet
+# ---------------------------------------------------------------------------
+
+
+def test_security_lake_sink_partitions_by_class_and_day(tmp_path):
+    pq = pytest.importorskip("pyarrow.parquet")
+    from ocsf_mapper.sinks.security_lake import SecurityLakeSink
+
+    day1 = 1716818591000
+    day2 = day1 + 24 * 3600 * 1000
+    events = [
+        {"class_uid": 3002, "time": day1, "user": {"name": "alice"}},
+        {"class_uid": 3002, "time": day1, "user": {"name": "bob"}},
+        {"class_uid": 6003, "time": day1, "api": {"operation": "GetObject"}},
+        {"class_uid": 6003, "time": day2, "api": {"operation": "PutObject"}},
+    ]
+    with SecurityLakeSink(tmp_path) as s:
+        s.write_many(events)
+        partitions_before_close = dict(s.partitions())
+
+    assert len(partitions_before_close) == 3
+    files = sorted(p.relative_to(tmp_path) for p in tmp_path.rglob("*.parquet"))
+    assert len(files) == 3
+    rel_strs = {str(f) for f in files}
+    assert any("3002/eventDay=" in s for s in rel_strs)
+    assert any("6003/eventDay=" in s for s in rel_strs)
+    total = sum(pq.read_table(tmp_path / f).num_rows for f in files)
+    assert total == 4
+
+
+def test_security_lake_sink_handles_missing_time(tmp_path):
+    pytest.importorskip("pyarrow")
+    from ocsf_mapper.sinks.security_lake import SecurityLakeSink
+
+    with SecurityLakeSink(tmp_path) as s:
+        s.write_one({"class_uid": 4002})
+    files = list(tmp_path.rglob("*.parquet"))
+    assert len(files) == 1
+    assert "eventDay=unknown" in str(files[0])
+
+
+def test_get_sink_security_lake(tmp_path):
+    pytest.importorskip("pyarrow")
+    sink = get_sink("security-lake", tmp_path)
+    assert sink.__class__.__name__ == "SecurityLakeSink"
+    sink2 = get_sink("security_lake", tmp_path)
+    assert sink2.__class__.__name__ == "SecurityLakeSink"
