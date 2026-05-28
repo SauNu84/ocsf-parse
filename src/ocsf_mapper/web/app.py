@@ -102,12 +102,9 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
     def homepage(request: Request) -> HTMLResponse:
         rows = _sorted_catalog_rows()
         return templates.TemplateResponse(
+            request,
             "home.html",
-            {
-                "request": request,
-                "rows": rows,
-                "totals": _summarize(rows),
-            },
+            {"rows": rows, "totals": _summarize(rows)},
         )
 
     @app.get("/sources/{name}", response_class=HTMLResponse)
@@ -115,13 +112,11 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
         cfg = _mapping_or_404(name)
         entry = next((e for e in _sorted_catalog_rows() if e["source"] == name), None)
         sample_path = entry["sample_path"] if entry else None
-        sample_text = ""
-        if sample_path:
-            sample_text = Path(sample_path).read_text()
+        sample_text = Path(sample_path).read_text() if sample_path else ""
         return templates.TemplateResponse(
+            request,
             "source.html",
             {
-                "request": request,
                 "name": name,
                 "entry": entry,
                 "cfg": cfg,
@@ -137,9 +132,9 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
             return HTMLResponse('<div class="empty">No pinned sample.</div>')
         text = Path(entry["sample_path"]).read_text()
         return templates.TemplateResponse(
+            request,
             "partials/sample.html",
             {
-                "request": request,
                 "sample_text": text,
                 "filename": Path(entry["sample_path"]).name,
                 "line_count": text.count("\n"),
@@ -177,9 +172,9 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
                 "validation": errs,
             })
         return templates.TemplateResponse(
+            request,
             "partials/output.html",
             {
-                "request": request,
                 "results": results,
                 "total": len(results),
                 "ok": sum(1 for r in results if not r.get("error") and not r.get("validation")),
