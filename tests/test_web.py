@@ -215,3 +215,99 @@ def test_coverage_tab_renders(client):
 def test_coverage_tab_404_for_unknown(client):
     r = client.get("/sources/totally_made_up/coverage")
     assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Step 4: New-source wizard
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def wizard_env(tmp_path, monkeypatch, repo_root):
+    """Isolated repo + fixture LLM, so the wizard can run without API access."""
+    (tmp_path / "mappings").mkdir()
+    (tmp_path / "samples").mkdir()
+    (tmp_path / "catalog.json").write_text('{"ocsf_schema_version":"1.9.0-dev","entries":[]}')
+    monkeypatch.setenv("OCSF_LLM_PROVIDER", "fixture")
+    monkeypatch.setenv("OCSF_LLM_FIXTURE_DIR", str(repo_root / "tests" / "fixtures" / "llm"))
+    monkeypatch.setenv("OCSF_LLM_FIXTURE_SOURCE", "my_test_source")
+    return TestClient(create_app(root=tmp_path)), tmp_path
+
+
+def test_wizard_landing_renders(client):
+    r = client.get("/new")
+    assert r.status_code == 200
+    assert "Source name" in r.text
+    assert "wizard-form" in r.text
+
+
+def test_wizard_draft_then_save_writes_mapping(wizard_env):
+    import html as _html, re as _re
+    iso_client, root = wizard_env
+
+    sample = b'{"event_type":"login","ts":"2026-05-27T14:23:11Z","user":"alice"}\n'
+    r = iso_client.post(
+        "/new/draft",
+        data={"source_name": "my_test_source", "vendor": "Acme",
+              "priority": "medium", "description": "demo"},
+        files={"sample": ("demo.jsonl", sample, "application/x-ndjson")},
+    )
+    assert r.status_code == 200
+    assert "Draft mapping for" in r.text
+
+    # Extract the draft JSON the editor was preloaded with.
+    m = _re.search(r'data-initial="([^"]+)"', r.text)
+    assert m, "draft JSON not found in editor partial"
+    draft = _html.unescape(m.group(1))
+
+    r2 = iso_client.post("/new/save",
+                          data={"source_name": "my_test_source", "content": draft})
+    assert r2.status_code == 200, r2.text
+    assert "Saved" in r2.text
+    assert (root / "mappings/my_test_source.json").exists()
+    # Sample was placed in samples/ under the source name.
+    assert (root / "samples/my_test_source.jsonl").exists()
+
+
+def test_wizard_draft_rejects_invalid_source_name(wizard_env):
+    iso_client, _ = wizard_env
+    r = iso_client.post(
+        "/new/draft",
+        data={"source_name": "Bad Name With Spaces", "vendor": "Acme", "priority": "low"},
+        files={"sample": ("x.jsonl", b"{}\n", "application/x-ndjson")},
+    )
+    assert r.status_code == 400
+    assert "Invalid source_name" in r.text
+
+
+def test_wizard_save_refuses_to_overwrite(wizard_env):
+    iso_client, root = wizard_env
+    (root / "mappings/my_test_source.json").write_text("{}")
+    r = iso_client.post("/new/save",
+                        data={"source_name": "my_test_source", "content": "{}"})
+    assert r.status_code == 409
+    assert "already exists" in r.text
+
+
+def test_wizard_save_rejects_bad_json(wizard_env):
+    iso_client, _ = wizard_env
+    r = iso_client.post("/new/save",
+                        data={"source_name": "my_test_source", "content": "not json"})
+    assert r.status_code == 400
+    assert "invalid JSON" in r.text
+
+
+def test_wizard_draft_friendly_error_without_provider(tmp_path, monkeypatch):
+    monkeypatch.delenv("OCSF_LLM_PROVIDER", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    (tmp_path / "mappings").mkdir(); (tmp_path / "samples").mkdir()
+    (tmp_path / "catalog.json").write_text('{"ocsf_schema_version":"1.9.0-dev","entries":[]}')
+    iso_client = TestClient(create_app(root=tmp_path))
+    r = iso_client.post(
+        "/new/draft",
+        data={"source_name": "demo", "vendor": "Acme", "priority": "medium"},
+        files={"sample": ("x.jsonl", b'{"x":1}\n', "application/x-ndjson")},
+    )
+    assert r.status_code == 500
+    assert "ANTHROPIC_API_KEY" in r.text or "fixture" in r.text

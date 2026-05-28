@@ -1,0 +1,50 @@
+<div class="wizard-step wizard-draft">
+  <h2>Draft mapping for <code>{{ source_name }}</code></h2>
+  <p class="hint">
+    Review and edit the generated JSON. <strong>Save</strong> writes
+    <code>mappings/{{ source_name }}.json</code>, then lints against the
+    sample we just saved at <code>samples/{{ sample_filename }}</code>. If
+    the lint fails the file isn't written.
+  </p>
+  <div id="wizard-save-result" class="save-result"></div>
+  <div id="monaco-host" data-initial="{{ draft_json|e }}"></div>
+  <div class="wizard-actions">
+    <button class="btn-primary" onclick="ocsfWizardSave('{{ source_name }}')">Save mapping</button>
+  </div>
+</div>
+
+<link rel="stylesheet" data-name="vs/editor/editor.main"
+      href="https://cdn.jsdelivr.net/npm/monaco-editor@0.46.0/min/vs/editor/editor.main.css">
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.46.0/min/vs/loader.js"></script>
+<script>
+  (function() {
+    var host = document.getElementById('monaco-host');
+    if (!host) return;
+    var initial = host.dataset.initial || '{}';
+
+    require.config({ paths: { 'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.46.0/min/vs' }});
+    require(['vs/editor/editor.main'], function() {
+      window.__ocsfEditor = monaco.editor.create(host, {
+        value: initial,
+        language: 'json',
+        automaticLayout: true,
+        minimap: { enabled: false },
+        scrollBeyondLastLine: false,
+        fontSize: 12,
+      });
+    });
+
+    window.ocsfWizardSave = function(sourceName) {
+      if (!window.__ocsfEditor) return;
+      var content = window.__ocsfEditor.getValue();
+      var fd = new FormData();
+      fd.append('source_name', sourceName);
+      fd.append('content', content);
+      fetch('/new/save', { method: 'POST', body: fd })
+        .then(function(r) { return r.text().then(function(t) { return { html: t, ok: r.ok }; }); })
+        .then(function(res) {
+          document.getElementById('wizard-save-result').innerHTML = res.html;
+        });
+    };
+  })();
+</script>

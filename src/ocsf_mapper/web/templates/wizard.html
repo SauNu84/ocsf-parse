@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}New source — ocsf-mapper{% endblock %}
+{% block content %}
+<section class="wizard">
+  <a href="/" class="back">← all sources</a>
+  <h1>Onboard a new log source</h1>
+  <p class="hint">
+    Drop a sample of your log (JSON, JSONL, or a small <code>.log</code> file)
+    and the LLM-assisted generator will draft a mapping. You'll review the
+    draft, save it, and the linter runs to confirm it produces clean OCSF
+    events.
+  </p>
+
+  <form hx-post="/new/draft"
+        hx-encoding="multipart/form-data"
+        hx-target="#wizard-panel"
+        class="wizard-form">
+    <label>Source name <span class="hint">(lowercase, snake_case, e.g. <code>my_app_logs</code>)</span>
+      <input type="text" name="source_name" pattern="[a-z][a-z0-9_]*" required>
+    </label>
+    <label>Display name <span class="hint">(human-readable)</span>
+      <input type="text" name="display_name" placeholder="auto from source name if blank">
+    </label>
+    <label>Vendor / tool
+      <input type="text" name="vendor" required placeholder="e.g. Acme Corp">
+    </label>
+    <label>Priority
+      <select name="priority">
+        <option value="critical">Critical</option>
+        <option value="high">High</option>
+        <option value="medium" selected>Medium</option>
+        <option value="low">Low</option>
+      </select>
+    </label>
+    <label>Description <span class="hint">(one-line use case)</span>
+      <input type="text" name="description" placeholder="optional">
+    </label>
+    <label>Sample log file
+      <input type="file" name="sample" accept=".log,.jsonl,.json,.ndjson,.txt" required>
+    </label>
+    <button type="submit" class="btn-primary">Draft mapping</button>
+  </form>
+
+  <div id="wizard-panel"></div>
+</section>
+{% endblock %}

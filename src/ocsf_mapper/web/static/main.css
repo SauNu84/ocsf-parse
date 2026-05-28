@@ -406,3 +406,48 @@ footer {
 .missing-required h4 { color: var(--fail); }
 .missing-recommended h4 { color: var(--warn); }
 .missing-lists ul { margin: 0; padding-left: 18px; font-family: var(--mono); font-size: 11px; }
+
+/* ---- wizard (step 4) ---------------------------------------------- */
+
+.wizard h1 { margin: 4px 0 8px; font-size: 22px; }
+.wizard .back { color: var(--fg-muted); font-size: 12px; text-decoration: none; }
+.wizard .hint { color: var(--fg-muted); font-size: 12px; }
+
+.wizard-form {
+  display: grid;
+  gap: 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  max-width: 600px;
+  margin: 16px 0;
+}
+.wizard-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.wizard-form input[type=text],
+.wizard-form select {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 13px;
+}
+.wizard-form input[type=file] {
+  padding: 6px 0;
+  font-size: 12px;
+}
+.wizard-form .btn-primary {
+  justify-self: start;
+}
+
+.wizard-step h2 { margin: 8px 0; font-size: 18px; }
+.wizard-step .hint { font-size: 12px; color: var(--fg-muted); }
+.wizard-actions { margin-top: 12px; }
+.wizard-draft #monaco-host { height: 480px; }
+.save-error pre { margin: 6px 0 0; white-space: pre-wrap; font-size: 11px; }

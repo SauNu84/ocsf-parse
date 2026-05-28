@@ -112,6 +112,143 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
             {"rows": rows, "totals": _summarize(rows)},
         )
 
+    @app.get("/new", response_class=HTMLResponse)
+    def wizard_landing(request: Request) -> HTMLResponse:
+        return templates.TemplateResponse(
+            request, "wizard.html", {"step": 1, "categories": _PRIORITY_RANK.keys()},
+        )
+
+    @app.post("/new/draft", response_class=HTMLResponse)
+    async def wizard_draft(
+        request: Request,
+        source_name: str = Form(...),
+        vendor: str = Form(...),
+        priority: str = Form("medium"),
+        description: str = Form(""),
+        display_name: str = Form(""),
+        sample: UploadFile = File(...),
+    ) -> HTMLResponse:
+        import re
+        if not re.fullmatch(r"[a-z][a-z0-9_]*", source_name):
+            return templates.TemplateResponse(
+                request,
+                "partials/wizard_error.html",
+                {"message": (
+                    f"Invalid source_name: {source_name!r}. "
+                    "Use lowercase letters, digits, and underscores, "
+                    "starting with a letter."
+                )},
+                status_code=400,
+            )
+        # Decide sample filename by extension.
+        suffix = Path(sample.filename or "sample.log").suffix or ".log"
+        sample_target = samples_dir / f"{source_name}{suffix}"
+        samples_dir.mkdir(parents=True, exist_ok=True)
+        sample_target.write_bytes(await sample.read())
+
+        # Call the generator.
+        try:
+            from ocsf_mapper.generate import generate
+            from ocsf_mapper.providers import get_provider
+            provider = get_provider()
+            draft = generate(sample_target, source_name,
+                             provider=provider, schema=schema)
+        except Exception as e:
+            return templates.TemplateResponse(
+                request,
+                "partials/wizard_error.html",
+                {"message": (
+                    f"LLM generator failed: {e!r}. "
+                    "Set ANTHROPIC_API_KEY or OPENAI_API_KEY, "
+                    "or OCSF_LLM_PROVIDER=fixture for offline use."
+                )},
+                status_code=500,
+            )
+
+        # Inject the user-provided catalog metadata so the draft is self-describing.
+        draft = {
+            "source_name": source_name,
+            "display_name": display_name or source_name.replace("_", " ").title(),
+            "vendor": vendor,
+            "priority": priority,
+            "description": description or f"Mapping for {source_name}.",
+            **{k: v for k, v in draft.items() if k not in ("source_name",)},
+        }
+
+        return templates.TemplateResponse(
+            request,
+            "partials/wizard_draft.html",
+            {
+                "source_name": source_name,
+                "sample_filename": sample_target.name,
+                "draft_json": json.dumps(draft, indent=2),
+            },
+        )
+
+    @app.post("/new/save", response_class=HTMLResponse)
+    def wizard_save(
+        request: Request,
+        source_name: str = Form(...),
+        content: str = Form(...),
+    ) -> HTMLResponse:
+        import re
+        if not re.fullmatch(r"[a-z][a-z0-9_]*", source_name):
+            raise HTTPException(status_code=400, detail="invalid source_name")
+        target = mappings_dir / f"{source_name}.json"
+        if target.exists():
+            return templates.TemplateResponse(
+                request,
+                "partials/wizard_error.html",
+                {"message": (
+                    f"mappings/{source_name}.json already exists — refusing "
+                    "to overwrite. Edit the existing source page instead."
+                )},
+                status_code=409,
+            )
+        try:
+            parsed = json.loads(content)
+        except json.JSONDecodeError as e:
+            return templates.TemplateResponse(
+                request,
+                "partials/wizard_error.html",
+                {"message": f"invalid JSON: {e}"},
+                status_code=400,
+            )
+        # Find the sample we just saved.
+        sample_path = _find_sample_path(source_name)
+        if sample_path is None:
+            # Try a glob — the wizard may have saved e.g. .log when none existed.
+            candidates = list(samples_dir.glob(f"{source_name}.*"))
+            sample_path = candidates[0] if candidates else None
+
+        # Lint before writing.
+        tmp_path = target.with_suffix(".json.tmp")
+        mappings_dir.mkdir(parents=True, exist_ok=True)
+        tmp_path.write_text(json.dumps(parsed, indent=2) + "\n")
+        try:
+            result = lint_one(tmp_path, sample_path, schema)
+            if result["status"] != "OK":
+                return templates.TemplateResponse(
+                    request,
+                    "partials/wizard_error.html",
+                    {"message": "Draft did not lint clean:\n" + "\n".join(result["errors"])},
+                    status_code=400,
+                )
+            tmp_path.replace(target)
+        finally:
+            if tmp_path.exists():
+                tmp_path.unlink()
+
+        return templates.TemplateResponse(
+            request,
+            "partials/wizard_done.html",
+            {
+                "source_name": source_name,
+                "events": result.get("events", 0),
+                "classes": result.get("classes", []),
+            },
+        )
+
     @app.get("/sources/{name}", response_class=HTMLResponse)
     def source_page(name: str, request: Request) -> HTMLResponse:
         cfg = _mapping_or_404(name)
