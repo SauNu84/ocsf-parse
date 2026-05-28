@@ -9,11 +9,20 @@ web UI and LLM-assisted onboarding.
 
 ## What it does
 
-**29 reference mappings**, **14 OCSF event classes**, **6 of 8 OCSF
+**29 reference mappings**, **17 OCSF event classes**, **6 of 8 OCSF
 categories** — from Windows Event Log / Sysmon / auditd through CloudTrail /
 Okta / Azure AD to Suricata / Wazuh / CrowdStrike. Each mapping ships with
 a paired ~100-event sample, is lint-checked on every PR, and validates
 against the vendored OCSF schema.
+
+| OCSF category | Classes covered | Sources |
+|---|---|---|
+| System Activity | `file_activity`, `kernel_activity`, `process_activity`, `scheduled_job_activity` | auditd_file, dlp_events, falco_kernel, sysmon_process, cron |
+| Findings | `security_finding`, `detection_finding`, `vulnerability_finding` | wazuh, splunk_es_alert, crowdstrike_falcon, suricata_alert, qualys_scan, ueba_alert |
+| IAM | `authentication`, `entity_management` | okta, sshd, cloudtrail (ConsoleLogin), windows_event_log, azure_ad_signin |
+| Network | `network_activity`, `http_activity`, `dns_activity`, `email_activity` | nginx, apache, cloudflare, palo_alto, vpc_flow_logs, waf_logs, zeek_dns, m365_email, google_workspace |
+| Discovery | `inventory_info`, `config_state`, `device_config_state_change` | osquery_inventory, aws_config, jamf_inventory, prisma_cloud |
+| Application Activity | `api_activity` | cloudtrail (non-login) |
 
 Browse the master-data view with `ocsf-mapper catalog` or
 [`catalog.json`](./catalog.json).
@@ -127,7 +136,8 @@ catalog.json             Master-data: vendor + priority + OCSF target per source
 ocsf-schema/             Vendored ocsf/ocsf-schema (git submodule, pinned)
 src/ocsf_mapper/
   apply.py               DSL executor + public apply()/apply_stream()
-  ops.py                 12 op kinds (const, path, lookup, time, range, expr, for_each, ...)
+  ops.py                 11 op kinds (const, path, group, raw, lookup, time,
+                          range, int, bool, expr, for_each)
   validate.py            Structural validator
   registry.py            Programmatic mapping inventory
   catalog.py             catalog.json reader + table printer
@@ -137,13 +147,14 @@ src/ocsf_mapper/
   generate.py            LLM-assisted two-phase mapping generator
   stream.py              tail -f-style streaming helpers
   providers/             LLM provider abstraction (Anthropic, OpenAI, fixture)
-  sinks/                 Output destinations (jsonl, csv, parquet, security-lake, stdout)
+  sinks/                 Output destinations (jsonl, csv, parquet,
+                          security-lake, stdout)
   web/                   FastAPI + Jinja2 + HTMX app
   cli.py                 ocsf-mapper CLI entry point
 scripts/
   generate_samples.py    Deterministic sample-data generator
   lint_mappings.py       Thin wrapper around python -m ocsf_mapper.lint
-tests/                   pytest suite (160+ tests, ~91% coverage)
+tests/                   pytest suite (176 tests, ~91% coverage)
 ```
 
 ## Adding a new log source
@@ -158,18 +169,29 @@ tests/                   pytest suite (160+ tests, ~91% coverage)
 
 ## Status
 
-- [x] **Phase A — SDK**: pip-installable package, CLI (8 subcommands),
-      sinks (5 kinds incl. Security Lake), lint, 29 reference mappings,
-      master-data catalog, GitHub Actions CI on 3.9/3.11/3.12.
-- [x] **Phase B — Web UI**: homepage card grid, per-source page with 5
-      tabs (Sample, Output, Mapping editor with Monaco, Validation,
-      Coverage), `/new` wizard.
+- [x] **Phase A — SDK**: pip-installable package, CLI (8 subcommands —
+      `apply`, `validate`, `list`, `catalog`, `lint`, `generate`, `tail`,
+      `serve`), 29 reference mappings, master-data catalog,
+      GitHub Actions CI on Python 3.9 / 3.11 / 3.12.
+- [x] **Phase B — Web UI**: homepage card grid (with priority badges and
+      coverage bars), per-source page with 5 HTMX-swappable tabs
+      (Sample, Output, Mapping editor with Monaco, Validation, Coverage),
+      new-source wizard at `/new`.
 - [x] **Phase C — LLM-assisted onboarding**: Anthropic / OpenAI / fixture
-      provider abstraction, `ocsf-mapper generate` CLI, UI wizard.
-- [x] **Phase D — Polish (in progress)**: per-mapping coverage scoring,
-      partitioned Parquet sink for AWS Security Lake, `tail -f` live
-      streaming mode. Still open: schema-bump diff, WebSocket live-tail
-      UI mode.
+      provider abstraction, two-phase generator (`suggest_classes` →
+      `draft_mapping`), `ocsf-mapper generate` CLI, UI wizard with
+      server-side lint gate.
+- [~] **Phase D — Polish**:
+  - [x] Per-mapping coverage scoring (required + recommended attrs)
+  - [x] Partitioned Parquet sink for AWS Security Lake
+        (`<root>/<class_uid>/eventDay=YYYYMMDD/*.parquet`)
+  - [x] `tail -f` live streaming mode (`ocsf-mapper tail`)
+  - [ ] Schema-bump diff (when `ocsf-schema` updates, surface mappings
+        missing newly-required attrs)
+  - [ ] WebSocket live-tail UI mode (server-side `tail` pushed to the
+        Output tab over SSE/WebSocket)
+  - [ ] Mapping comparison (side-by-side diff of two mappings)
+  - [ ] PII redaction layer (pre-storage filter for known PII patterns)
 
 See [`CHANGELOG.md`](./CHANGELOG.md) for the per-feature commit timeline
 and [`PLAN.md`](./PLAN.md) for the original architecture and design

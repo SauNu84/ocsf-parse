@@ -4,6 +4,11 @@
 > Framework](https://github.com/ocsf/ocsf-schema). One Python engine, JSON mapping
 > configs per source, LLM-assisted onboarding, validating UI.
 
+> **Implementation status:** Phase A, B, C complete; Phase D in progress.
+> 29 reference mappings live, 176 tests passing on Python 3.9 / 3.11 / 3.12.
+> See [`CHANGELOG.md`](./CHANGELOG.md) for the commit timeline. Status
+> tags on each phase below; original design rationale preserved verbatim.
+
 ## 1. Vision
 
 Security teams shouldn't have to write a custom parser every time they add a new
@@ -108,7 +113,11 @@ ocsf-parse/
 Each phase has explicit acceptance criteria. Don't move on until they're green.
 See §7 (sinks), §8 (batch/stream), §9 (LLM providers) for cross-cutting details.
 
-### Phase A — SDK (~2–3 days)
+### Phase A — SDK (~2–3 days) — ✅ DONE
+
+**Status:** Shipped in commits `afff28a` … `bffc0c8` … `0b2d37e`. Scope
+expanded along the way: 29 reference mappings (vs. the 4 planned), 8 CLI
+subcommands (vs. 5 planned), and 5 sink kinds (vs. 3 planned).
 
 **Goal:** Wrap the engine code into a clean, pip-installable Python package.
 
@@ -143,7 +152,7 @@ See §7 (sinks), §8 (batch/stream), §9 (LLM providers) for cross-cutting detai
 | `{"path": "$.a.b"}` | JSON path (supports list indices) |
 | `{"group": "name"}` | named regex group |
 | `{"lookup": expr, "table": {...}, "default": x, "if_null": y, "prefix_match": bool}` | vendor enum → OCSF enum |
-| `{"time": expr, "format": "iso8601"\|"epoch_ms"\|"strptime:<fmt>"}` | timestamp → epoch ms |
+| `{"time": expr, "format": "iso8601"\|"epoch_ms"\|"epoch_s"\|"strptime:<fmt>"}` | timestamp → epoch ms (`epoch_s` added during Phase A) |
 | `{"range": expr, "ranges": [[lo, hi, val], …], "default": x}` | numeric bucketing (HTTP code → status_id) |
 | `{"raw": true}` | original raw record |
 | `{"expr": "class_uid * 100 + activity_id"}` | sandboxed arithmetic on already-set targets |
@@ -152,15 +161,23 @@ See §7 (sinks), §8 (batch/stream), §9 (LLM providers) for cross-cutting detai
 
 #### Acceptance criteria
 
-- [ ] `pytest` passes (≥ 90% coverage of `ocsf_mapper`)
-- [ ] `python -m ocsf_mapper.lint mappings/` exits 0 with all 4 reference mappings
-- [ ] All 4 reference mappings produce events that validate against the schema
-- [ ] `from ocsf_mapper import apply, validate, generate` works from any cwd
-- [ ] CloudTrail `resources[]` fan-out works (closes the array-mapping gap)
+- [x] `pytest` passes (≥ 90% coverage of `ocsf_mapper`) — 91%+ across 176 tests
+- [x] `python -m ocsf_mapper.lint mappings/` exits 0 with all reference mappings
+      — passes on all **29** (vs. 4 originally planned)
+- [x] All reference mappings produce events that validate against the schema
+- [x] `from ocsf_mapper import apply, validate, generate` works from any cwd
+- [x] CloudTrail `resources[]` fan-out works (closes the array-mapping gap)
+      — 43 of 100 CloudTrail events now carry populated resource arrays
 
 ---
 
-### Phase B — Minimal UI (~3–5 days)
+### Phase B — Minimal UI (~3–5 days) — ✅ DONE
+
+**Status:** Shipped in commits `eed5922` (session 1: homepage + Sample +
+Output tabs) and `eb13785` … `c6b97c7` (session 2: Mapping editor +
+Validation + Coverage tabs + `/new` wizard). The original plan called for
+four tabs; the shipped UI has five (Sample / Output / Mapping / Validation
+/ Coverage).
 
 **Goal:** A web app that lists mappings, lets a user upload a sample, and shows
 the validated OCSF output.
@@ -206,15 +223,18 @@ Four tabs powered by HTMX swaps:
 
 #### Acceptance criteria
 
-- [ ] Homepage renders all 4 mappings with live stats from disk
-- [ ] Drop a log file → see OCSF output rendered side-by-side within 1 s
-- [ ] Edit mapping JSON → save → fail save with red banner if lint fails
-- [ ] Validator output shows specific failures, not just yes/no
-- [ ] Works without any external services running (pure file-backed)
+- [x] Homepage renders all mappings with live stats from disk — 29 cards
+      with priority badge + coverage bar + lint pill
+- [x] Drop a log file → see OCSF output rendered side-by-side within 1 s
+- [x] Edit mapping JSON → save → fail save with red banner if lint fails
+      (tmp-file + lint_one() gate; only promotes on `status == OK`)
+- [x] Validator output shows specific failures, not just yes/no — separate
+      Validation tab with a recurring-issues rollup
+- [x] Works without any external services running (pure file-backed)
 
 ---
 
-### Phase C — Generate-mapping wizard (~2 days)
+### Phase C — Generate-mapping wizard (~2 days) — ✅ DONE
 
 **Goal:** UI flow that turns "I have a log file" into "I have a working mapping"
 in under 5 minutes.
@@ -236,22 +256,49 @@ in under 5 minutes.
 
 #### Acceptance criteria
 
-- [ ] Onboard a new source (e.g. Suricata EVE) from a fresh sample in < 5 min total
-- [ ] Generated mapping validates against the schema on first save
-- [ ] If LLM produces an invalid target path, the UI shows the offending lines and refuses to save
+- [x] Onboard a new source from a fresh sample in < 5 min total — `/new`
+      wizard takes minutes end-to-end (most time is the LLM round-trip)
+- [x] Generated mapping validates against the schema on first save — the
+      save endpoint runs `lint_one()` against the just-uploaded sample
+      and refuses to write the file unless it passes
+- [~] If LLM produces an invalid target path, the UI shows the offending
+      lines and refuses to save — refuses to save: ✓ (red banner with the
+      specific lint errors). "Highlight offending lines" in the Monaco
+      editor: not implemented; falls back to the textual error list.
+
+**Status:** Shipped as part of Phase B step 4 (commit `c6b97c7`). The
+underlying generator and provider abstraction landed earlier in commit
+`0b2d37e` (`ocsf-mapper generate <source> <sample>` CLI). Provider
+auto-detection: `OCSF_LLM_PROVIDER` env → `ANTHROPIC_API_KEY` →
+`OPENAI_API_KEY` → `RuntimeError`. A `fixture` provider reads canned
+responses from `tests/fixtures/llm/<source>.json` for offline / CI use.
 
 ---
 
-### Phase D — Polish (~ongoing)
+### Phase D — Polish (~ongoing) — 🔄 partial
 
 Features that move it from "works" to "good":
 
-- **Coverage report**: per-mapping completeness score. Renders as a colored bar of (`required` populated / total required) and (`recommended` populated / total recommended).
-- **Schema-bump diff**: when `ocsf-schema` updates, surface "this mapping is missing newly-required field X on class Y."
-- **Stream test mode**: tail a file, render OCSF events in the UI in real time.
-- **Export targets**: drop-down on per-source page → download mapped events as JSONL, Parquet, or CSV.
-- **Mapping comparison**: side-by-side diff of two mappings (useful when one vendor has multiple variants).
-- **PII redaction layer**: optional pre-storage filter that strips configured fields before save.
+- [x] **Coverage report**: per-mapping completeness score, weighted
+      (required × 2 + recommended). Renders as colored bars on each card
+      and on a dedicated Coverage tab with missing-attr lists.
+      `src/ocsf_mapper/coverage.py`. Commit `8decc99`.
+- [ ] **Schema-bump diff**: when `ocsf-schema` updates, surface "this
+      mapping is missing newly-required field X on class Y." Not built.
+- [x] **Stream test mode (CLI)**: `ocsf-mapper tail <mapping> <file>` —
+      `tail -f`-style polling, no third-party deps. Routes through any
+      sink. Commit `99afe59`.
+- [ ] **Stream test mode (UI)**: tail a file, render OCSF events in the
+      Output tab in real time (WebSocket / SSE). Not built.
+- [x] **Export targets**: 5 sink kinds (`jsonl`, `csv`, `parquet`,
+      `security-lake`, `stdout`) wired into the CLI's `apply` subcommand.
+      `security-lake` writes `<root>/<class_uid>/eventDay=YYYYMMDD/*.parquet`
+      for AWS Security Lake ingest. Commit `efec7e7`.
+      UI export drop-down: not built.
+- [ ] **Mapping comparison**: side-by-side diff of two mappings (useful
+      when one vendor has multiple variants). Not built.
+- [ ] **PII redaction layer**: optional pre-storage filter that strips
+      configured fields before save. Not built.
 
 ---
 
@@ -503,47 +550,69 @@ test suite cover the generation flow without spending API tokens.
 
 ---
 
-## 10. What's already built (prototype at `/tmp/ocsf-demo/`)
+## 10. What's already built — *historical, Phase A port complete*
 
-The prototype proves Phase A is feasible and worth ~30% of the work already:
+The original prototype lived at `/tmp/ocsf-demo/` and was the starting point
+for the SDK port. Every file in the table below has been moved into the
+package and is now live; this section is kept for archaeology.
 
-| File | Status | Move to |
+| File | Status | Moved to |
 |---|---|---|
-| `apply_mapping.py` (DSL executor, 175 lines, 11 op kinds) | Working, lint-clean | `src/ocsf_mapper/apply.py` + split `ops.py` |
-| `validate_ocsf.py` (schema validator) | Working | `src/ocsf_mapper/validate.py` |
-| `gen_mapping.py` (LLM generator, SDK-wired) | Working with fallback | `src/ocsf_mapper/generate.py` |
-| `lint_mappings.py` (CI gate) | Working — 3/3 pass | `scripts/lint_mappings.py` |
-| 4 reference mappings (nginx, cloudtrail, okta, palo_alto) | Validated | `mappings/` |
-| 4 sample inputs | — | `samples/` |
-| Anthropic SDK wiring + mock smoke test | Working | `tests/test_generate.py` |
+| `apply_mapping.py` (DSL executor, 175 lines, 11 op kinds) | Ported | `src/ocsf_mapper/apply.py` + split `ops.py` |
+| `validate_ocsf.py` (schema validator) | Ported | `src/ocsf_mapper/validate.py` |
+| `gen_mapping.py` (LLM generator, SDK-wired) | Ported & refactored behind a provider abstraction | `src/ocsf_mapper/generate.py` + `providers/` |
+| `lint_mappings.py` (CI gate) | Ported | `scripts/lint_mappings.py` + `src/ocsf_mapper/lint.py` |
+| 4 reference mappings (nginx, cloudtrail, okta, palo_alto) | Ported, then grew to 29 | `mappings/` |
+| 4 sample inputs | Ported, regenerated to ~100 events each | `samples/` |
+| Anthropic SDK wiring + mock smoke test | Ported; covered by `FixtureProvider` for offline tests | `tests/test_providers.py`, `tests/test_generate.py` |
+
+Beyond the original list, the following were added during Phase A:
+**12-op DSL** (added `for_each`), **`epoch_s` time format**, **CLI with
+8 subcommands**, **5 sink kinds**, **catalog.json master data**,
+**GitHub Actions CI on 3.9 / 3.11 / 3.12**, **deterministic sample
+generator**.
 
 ---
 
-## 11. Order of operations
+## 11. Order of operations — *historical*
 
-**Phase A first.** No UI work, no LLM work, no UX polish until the SDK is a
-clean importable package with tests. Everything else depends on this surface
-being stable.
-
-After A: parallel tracks possible — UI (Phase B) and Phase D polish features
-can proceed independently. Phase C blocks on B's per-source page existing.
+The original plan: Phase A first, then B and D-polish in parallel, with
+C blocking on B's per-source page. **All four phases shipped in this order
+in practice.** The branch's commit log mirrors the planned sequence
+(`6c4070a` Phase-A port → `bffc0c8` CLI/sinks/CI → `0b2d37e` for_each +
+LLM abstraction → `eed5922` Phase-B session 1 → `eb13785`…`c6b97c7`
+Phase-B session 2 / Phase-C wizard → `efec7e7` `99afe59` Phase-D polish).
 
 ---
 
-## 12. Next concrete step
+## 12. Open work (post-Phase-A/B/C)
 
-Initialize the repo:
+The repo has crossed the "feature-complete for v0.1" line. Remaining items
+called out in this plan but not yet shipped:
 
-```bash
-cd /Users/hung.nguyen.wax/github/ocsf-parse
-git init
-mkdir -p src/ocsf_mapper tests mappings samples web scripts
-# copy prototype files from /tmp/ocsf-demo/ into the new layout
-# write pyproject.toml
-# write src/ocsf_mapper/__init__.py exporting the public surface
-# port apply_mapping.py → src/ocsf_mapper/apply.py + ops.py
-# add pytest fixtures + tests
-```
+- **Phase D / Schema-bump diff** — when the `ocsf-schema` submodule is
+  bumped, surface "this mapping is missing newly-required field X on
+  class Y" so we can fix mappings before lint fails on the next PR.
+  Estimated: half a session.
+- **Phase D / Stream test mode (UI)** — Output tab gets a "Live tail"
+  toggle that pushes mapped events over SSE or WebSocket. Backend reuses
+  the existing `stream_apply` helper. Estimated: half a session.
+- **Phase D / Mapping comparison** — side-by-side diff of two mappings
+  (e.g. two variants of the same vendor's logs). Estimated: half a
+  session.
+- **Phase D / PII redaction** — opt-in sink wrapper that strips configured
+  fields (or matches known PII patterns: email, SSN) before write.
+  Estimated: half a session.
+- **Phase D / Coverage badges in CI** — emit `coverage.json` from
+  `lint_mappings` and post a per-PR comment showing the coverage delta.
+  Estimated: quarter session.
+- **Mappings beyond OCSF base** — Windows-extension classes
+  (`registry_key_activity` etc) require loading `ocsf-schema/extensions/`,
+  which the validator doesn't do yet. Estimated: one session of
+  schema-loader work.
+- **OCSF categories not yet covered** — `remediation` (category 7)
+  and `unmanned_systems` (category 8). No representative source proposed
+  yet.
 
-Acceptance for "Phase A is done": `pip install -e .` works, `pytest` passes,
-`python -m ocsf_mapper.lint mappings/` exits 0.
+For the active acceptance criteria and feature list see the Status block
+at the top of this file and [`CHANGELOG.md`](./CHANGELOG.md).
