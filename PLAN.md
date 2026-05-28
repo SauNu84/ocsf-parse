@@ -283,8 +283,10 @@ Features that move it from "works" to "good":
       (required × 2 + recommended). Renders as colored bars on each card
       and on a dedicated Coverage tab with missing-attr lists.
       `src/ocsf_mapper/coverage.py`. Commit `8decc99`.
-- [ ] **Schema-bump diff**: when `ocsf-schema` updates, surface "this
-      mapping is missing newly-required field X on class Y." Not built.
+- [x] **Schema-bump diff**: `ocsf-mapper schema-diff [<ref>]` compares
+      current schema against an older git ref of the submodule, joins
+      per-class diffs (added required, at_least_one, activity enum)
+      against mappings to surface silent breakage. Commit `01904ee`.
 - [x] **Stream test mode (CLI)**: `ocsf-mapper tail <mapping> <file>` —
       `tail -f`-style polling, no third-party deps. Routes through any
       sink. Commit `99afe59`.
@@ -297,8 +299,10 @@ Features that move it from "works" to "good":
       UI export drop-down: not built.
 - [ ] **Mapping comparison**: side-by-side diff of two mappings (useful
       when one vendor has multiple variants). Not built.
-- [ ] **PII redaction layer**: optional pre-storage filter that strips
-      configured fields before save. Not built.
+- [x] **PII redaction layer**: `RedactingSink` wraps any sink; scrubs
+      email / ipv4 / ssn / phone / jwt / Luhn-valid ccn by default or a
+      chosen subset. CLI: `apply ... --redact [kind ...]`.
+      Commit `6de0d9d`.
 
 ---
 

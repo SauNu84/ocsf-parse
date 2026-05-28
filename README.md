@@ -186,12 +186,13 @@ tests/                   pytest suite (176 tests, ~91% coverage)
   - [x] Partitioned Parquet sink for AWS Security Lake
         (`<root>/<class_uid>/eventDay=YYYYMMDD/*.parquet`)
   - [x] `tail -f` live streaming mode (`ocsf-mapper tail`)
-  - [ ] Schema-bump diff (when `ocsf-schema` updates, surface mappings
-        missing newly-required attrs)
+  - [x] Schema-bump diff (`ocsf-mapper schema-diff` joins schema deltas
+        against mappings to surface silent breakage)
+  - [x] PII redaction layer (`apply ... --redact`; scrubs email / ipv4
+        / ssn / phone / jwt / Luhn-valid ccn)
   - [ ] WebSocket live-tail UI mode (server-side `tail` pushed to the
         Output tab over SSE/WebSocket)
   - [ ] Mapping comparison (side-by-side diff of two mappings)
-  - [ ] PII redaction layer (pre-storage filter for known PII patterns)
 
 See [`CHANGELOG.md`](./CHANGELOG.md) for the per-feature commit timeline
 and [`PLAN.md`](./PLAN.md) for the original architecture and design
