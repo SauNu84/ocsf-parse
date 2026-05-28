@@ -1,0 +1,54 @@
+<div class="validation-tab">
+  <p class="validation-summary">
+    Linted <strong>{{ total }}</strong> event(s) from
+    <code>{{ sample_filename }}</code>:
+    <span class="ok">✓ {{ ok }} valid</span>
+    <span class="fail">✗ {{ fail }} failing</span>
+    {% if skip %}<span class="skip">· {{ skip }} skipped</span>{% endif %}
+  </p>
+
+  {% if top_issues %}
+  <details class="top-issues" open>
+    <summary>Recurring issues ({{ top_issues|length }})</summary>
+    <table>
+      <thead><tr><th>Count</th><th>Class</th><th>Issue</th></tr></thead>
+      <tbody>
+        {% for r in top_issues %}
+        <tr>
+          <td class="num">{{ r.count }}</td>
+          <td><span class="class-pill">{{ r.class_name }}</span></td>
+          <td class="issue">{{ r.issue }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </details>
+  {% endif %}
+
+  <details class="per-event">
+    <summary>Per-event status (first {{ events|length }})</summary>
+    <table class="validation-table">
+      <thead>
+        <tr><th>#</th><th>Status</th><th>Class</th><th>Issues</th></tr>
+      </thead>
+      <tbody>
+        {% for ev in events %}
+        <tr class="row-{{ ev.status }}">
+          <td class="num">{{ ev.index }}</td>
+          <td>
+            {% if ev.status == "ok" %}<span class="ok">✓ ok</span>
+            {% elif ev.status == "fail" %}<span class="fail">✗ fail</span>
+            {% else %}<span class="skip">· skip</span>{% endif %}
+          </td>
+          <td>{% if ev.class_name %}<span class="class-pill">{{ ev.class_name }}</span>{% endif %}</td>
+          <td>
+            {% if ev.errors %}
+              <ul class="issues">{% for e in ev.errors %}<li>{{ e }}</li>{% endfor %}</ul>
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </details>
+</div>

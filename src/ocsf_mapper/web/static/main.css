@@ -275,3 +275,46 @@ footer {
 }
 .save-error ul { margin: 6px 0 0 0; padding-left: 20px; }
 .save-error .hint { color: var(--fg-muted); margin: 6px 0 0; }
+
+/* ---- validation tab (step 2) -------------------------------------- */
+
+.validation-summary {
+  background: #f5f7f9;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+.validation-summary .ok   { color: var(--ok); margin-right: 10px; }
+.validation-summary .fail { color: var(--fail); margin-right: 10px; }
+.validation-summary .skip { color: var(--fg-muted); }
+
+.validation-tab details {
+  margin-top: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.validation-tab summary {
+  padding: 8px 12px;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 13px;
+  user-select: none;
+}
+.validation-tab table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.validation-tab th, .validation-tab td {
+  border-top: 1px solid var(--border);
+  padding: 6px 10px;
+  vertical-align: top;
+  text-align: left;
+}
+.validation-tab th { background: #f5f7f9; font-weight: 500; }
+.validation-tab .num { width: 60px; color: var(--fg-muted); font-family: var(--mono); }
+.validation-tab .issue { font-family: var(--mono); font-size: 11px; }
+.validation-tab .row-ok td { background: rgba(31, 136, 61, 0.03); }
+.validation-tab .row-fail td { background: rgba(207, 34, 46, 0.05); }
+.validation-tab .issues { margin: 0; padding-left: 18px; color: var(--fail); font-family: var(--mono); font-size: 11px; }

@@ -183,6 +183,70 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
             },
         )
 
+    @app.get("/sources/{name}/validation", response_class=HTMLResponse)
+    def source_validation(name: str, request: Request) -> HTMLResponse:
+        cfg = _mapping_or_404(name)
+        sample_path = _find_sample_path(name)
+        if sample_path is None:
+            return HTMLResponse('<div class="empty">No pinned sample to validate against.</div>')
+
+        # Validate every event of the pinned sample. Capture per-event status +
+        # aggregate counts of unique issues per class for the summary.
+        from collections import Counter
+        lines = sample_path.read_text().splitlines()
+        events: list[dict] = []
+        per_class_required: dict = {}  # class_name -> Counter of required-attr names always missing
+        for i, line in enumerate(lines, 1):
+            if not line.strip():
+                continue
+            try:
+                from ocsf_mapper.apply import apply_with_class
+                pair = apply_with_class(cfg, line)
+            except Exception as e:
+                events.append({"index": i, "status": "fail",
+                               "errors": [f"apply crashed: {e!r}"]})
+                continue
+            if pair is None:
+                events.append({"index": i, "status": "skip",
+                               "errors": ["line did not match parser / routing"]})
+                continue
+            ev, cls = pair
+            errs = validate(ev, cls, schema=schema)
+            events.append({
+                "index": i,
+                "status": "ok" if not errs else "fail",
+                "class_name": cls,
+                "errors": errs,
+            })
+            if errs:
+                ct = per_class_required.setdefault(cls, Counter())
+                for e in errs:
+                    ct[e] += 1
+        ok    = sum(1 for e in events if e["status"] == "ok")
+        fail  = sum(1 for e in events if e["status"] == "fail")
+        skip  = sum(1 for e in events if e["status"] == "skip")
+        # Top 5 recurring failures across the sample, with class context.
+        top_issues = []
+        for cls, ct in per_class_required.items():
+            for issue, n in ct.most_common(5):
+                top_issues.append({"class_name": cls, "issue": issue, "count": n})
+        top_issues.sort(key=lambda r: r["count"], reverse=True)
+
+        return templates.TemplateResponse(
+            request,
+            "partials/validation.html",
+            {
+                "name": name,
+                "events": events[:200],         # cap UI to first 200
+                "total": len(events),
+                "ok": ok,
+                "fail": fail,
+                "skip": skip,
+                "top_issues": top_issues[:10],
+                "sample_filename": sample_path.name,
+            },
+        )
+
     @app.get("/sources/{name}/mapping", response_class=HTMLResponse)
     def source_mapping(name: str, request: Request) -> HTMLResponse:
         cfg = _mapping_or_404(name)

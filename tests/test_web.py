@@ -137,3 +137,54 @@ def test_save_accepts_clean_mapping(tmp_path, repo_root):
 def test_save_404_for_unknown_source(client):
     r = client.post("/sources/totally_made_up/save", data={"content": "{}"})
     assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Step 2: Validation tab
+# ---------------------------------------------------------------------------
+
+
+def test_validation_tab_clean_sample(client):
+    r = client.get("/sources/cloudtrail/validation")
+    assert r.status_code == 200
+    assert "validation-summary" in r.text
+    assert "<strong>100</strong>" in r.text
+    assert "100 valid" in r.text
+
+
+def test_validation_tab_surfaces_recurring_issues(tmp_path, repo_root):
+    """When a mapping is broken in a uniform way, the validation tab should
+    aggregate the same error across many events under 'Recurring issues'."""
+    import shutil, json as _j
+    isolated = tmp_path / "repo"
+    shutil.copytree(repo_root / "mappings", isolated / "mappings")
+    shutil.copytree(repo_root / "samples", isolated / "samples")
+    shutil.copy(repo_root / "catalog.json", isolated / "catalog.json")
+
+    okta = _j.loads((isolated / "mappings/okta.json").read_text())
+    for cls in okta["classes"].values():
+        cls["mapping"].pop("severity_id", None)
+        cls["mapping"].pop("severity", None)
+    (isolated / "mappings/okta.json").write_text(_j.dumps(okta))
+
+    iso_client = TestClient(create_app(root=isolated))
+    r = iso_client.get("/sources/okta/validation")
+    assert r.status_code == 200
+    assert "failing" in r.text
+    assert "Recurring issues" in r.text
+    assert "severity_id" in r.text
+
+
+def test_validation_tab_missing_sample(tmp_path):
+    (tmp_path / "mappings").mkdir()
+    (tmp_path / "samples").mkdir()
+    (tmp_path / "mappings/orphan.json").write_text('{"parser":"json","classes":{}}')
+    (tmp_path / "catalog.json").write_text(
+        '{"ocsf_schema_version":"1.9.0-dev","entries":[' +
+        '{"source":"orphan","display_name":"X","vendor":"X","priority":"low","description":"",' +
+        '"ocsf":{"category_uid":1,"category_name":"X","class_uid":1001,"class_name":"X"}}]}'
+    )
+    iso_client = TestClient(create_app(root=tmp_path))
+    r = iso_client.get("/sources/orphan/validation")
+    assert r.status_code == 200
+    assert "No pinned sample" in r.text
