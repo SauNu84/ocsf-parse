@@ -120,6 +120,11 @@ def cmd_lint(args: argparse.Namespace) -> int:
     return lint_main(args.folder)
 
 
+def cmd_schema_diff(args: argparse.Namespace) -> int:
+    from ocsf_mapper.schema_diff import main as schema_diff_main
+    return schema_diff_main([args.ref, args.folder])
+
+
 def cmd_generate(args: argparse.Namespace) -> int:
     from ocsf_mapper.generate import generate
     from ocsf_mapper.providers import get_provider
@@ -228,6 +233,17 @@ def build_parser() -> argparse.ArgumentParser:
     sp = sub.add_parser("lint", help="Run all mappings against their pinned samples.")
     sp.add_argument("folder", nargs="?", default="mappings", help="Mappings folder.")
     sp.set_defaults(func=cmd_lint)
+
+    # schema-diff
+    sp = sub.add_parser(
+        "schema-diff",
+        help="Compare current OCSF schema vs an older git ref of the submodule.",
+    )
+    sp.add_argument("ref", nargs="?", default="HEAD~1",
+                    help="Git ref in the ocsf-schema submodule (default: HEAD~1).")
+    sp.add_argument("folder", nargs="?", default="mappings",
+                    help="Mappings folder (default: ./mappings).")
+    sp.set_defaults(func=cmd_schema_diff)
 
     # generate
     sp = sub.add_parser("generate", help="LLM-draft a new mapping from a sample.")
