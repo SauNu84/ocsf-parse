@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import json
 import re
+from functools import lru_cache
 from typing import Any, Iterable, Iterator, Mapping, Optional, Tuple
 
 from ocsf_mapper.ops import apply_op, resolve_expr, set_path
@@ -35,6 +36,17 @@ from ocsf_mapper.ops import apply_op, resolve_expr, set_path
 # ---------------------------------------------------------------------------
 # parsing — raw line to record
 # ---------------------------------------------------------------------------
+
+
+@lru_cache(maxsize=128)
+def _compile_regex(pattern: str) -> re.Pattern:
+    """Cache compiled regex patterns across calls.
+
+    parse_record is on the hot path; re.match() on a string-form pattern
+    re-compiles each call. With this cache the compile cost is paid once
+    per unique parser, which matters at 10⁶+ events/run.
+    """
+    return re.compile(pattern)
 
 
 def parse_record(raw_line: str, parser_spec: Any) -> Optional[dict]:
@@ -48,7 +60,7 @@ def parse_record(raw_line: str, parser_spec: Any) -> Optional[dict]:
         rec["__raw__"] = raw_line.rstrip("\n")
         return rec
     if isinstance(parser_spec, dict) and "regex" in parser_spec:
-        m = re.match(parser_spec["regex"], raw_line.rstrip("\n"))
+        m = _compile_regex(parser_spec["regex"]).match(raw_line.rstrip("\n"))
         if not m:
             return None
         groups = m.groupdict()

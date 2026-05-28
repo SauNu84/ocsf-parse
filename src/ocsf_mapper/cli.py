@@ -34,10 +34,21 @@ from ocsf_mapper.validate import validate
 
 
 def _read_lines(input_arg: str) -> Iterable[str]:
-    """Read newline-delimited lines from a path or stdin (``-``)."""
+    """Read newline-delimited lines from a path or stdin (``-``).
+
+    Streams line-by-line so input larger than RAM doesn't blow up on us —
+    the engine downstream is already iterator-shaped, the previous
+    ``read_text().splitlines()`` was the bottleneck.
+    """
     if input_arg == "-":
         return iter(sys.stdin)
-    return Path(input_arg).read_text().splitlines()
+    return _iter_file(input_arg)
+
+
+def _iter_file(path: str) -> Iterable[str]:
+    with open(path, "r", encoding="utf-8", errors="replace") as fp:
+        for line in fp:
+            yield line.rstrip("\n")
 
 
 def _load_mapping(mapping_arg: str) -> dict:
