@@ -1,0 +1,86 @@
+"""Tests for the FastAPI web UI."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+
+fastapi = pytest.importorskip("fastapi")
+from fastapi.testclient import TestClient  # noqa: E402
+
+from ocsf_mapper.web import create_app  # noqa: E402
+
+
+@pytest.fixture
+def client(repo_root, monkeypatch):
+    monkeypatch.chdir(repo_root)
+    return TestClient(create_app(root=repo_root))
+
+
+def test_healthz(client):
+    r = client.get("/healthz")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["ok"] is True
+    assert body["schema_version"] == "1.9.0-dev"
+
+
+def test_homepage_lists_all_sources(client):
+    r = client.get("/")
+    assert r.status_code == 200
+    # Cards for a sampling of source display names — confirms catalog wiring works.
+    for needle in ("Windows Event Log", "AWS CloudTrail", "Okta", "Cloudflare", "Sysmon"):
+        assert needle in r.text, f"homepage missing card for {needle!r}"
+    # Card grid + priority badges should render.
+    assert "card-grid" in r.text
+    assert "pri-critical" in r.text
+
+
+def test_source_page_renders(client):
+    r = client.get("/sources/cloudtrail")
+    assert r.status_code == 200
+    assert "AWS CloudTrail" in r.text
+    assert "tabs" in r.text  # the tab strip
+    # Sample tab loads via HTMX hx-get — verify the partial endpoint works too.
+    r2 = client.get("/sources/cloudtrail/sample")
+    assert r2.status_code == 200
+    assert "sample-pre" in r2.text
+
+
+def test_source_page_404_for_unknown(client):
+    r = client.get("/sources/this_does_not_exist")
+    assert r.status_code == 404
+
+
+def test_apply_uploaded_file_returns_ocsf_output(client, samples_dir):
+    sample_bytes = (samples_dir / "okta.jsonl").read_bytes()
+    r = client.post(
+        "/sources/okta/apply",
+        files={"file": ("okta.jsonl", sample_bytes, "application/x-ndjson")},
+    )
+    assert r.status_code == 200
+    assert "output-result" in r.text
+    assert "authentication" in r.text or "entity_management" in r.text
+    # Should report 100 events from the 100-line sample.
+    assert "<strong>100</strong>" in r.text
+
+
+def test_apply_handles_regex_misses_gracefully(client, tmp_path, samples_dir):
+    # The sshd parser is regex-based; non-matching lines get reported as "no match",
+    # not 500s. Send a file with one matching + one bogus line.
+    payload = b"this line will not match\nMay 27 14:23:11 host sshd[1]: Accepted password for alice from 10.0.0.1 port 1234 ssh2\n"
+    r = client.post(
+        "/sources/sshd/apply",
+        files={"file": ("mixed.log", payload, "text/plain")},
+    )
+    assert r.status_code == 200
+    assert "no match" in r.text
+    assert "authentication" in r.text
+
+
+def test_static_files_served(client):
+    r = client.get("/static/main.css")
+    assert r.status_code == 200
+    assert "card-grid" in r.text or "badge" in r.text

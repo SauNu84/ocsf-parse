@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}ocsf-mapper{% endblock %}</title>
+  <link rel="stylesheet" href="/static/main.css">
+  <script src="https://unpkg.com/htmx.org@1.9.12" integrity="sha384-ujb1lZYygJmzgSwoxRggbCHcjc0rB2XoQrxeTUQyRjrOnlCoYta87iKBWq3EsdM2" crossorigin="anonymous"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a href="/" class="logo">ocsf-mapper</a>
+    <nav>
+      <a href="/">Catalog</a>
+    </nav>
+  </header>
+  <main>{% block content %}{% endblock %}</main>
+  <footer>
+    <span>OCSF schema {{ schema_version or "1.9.0-dev" }}</span>
+  </footer>
+</body>
+</html>

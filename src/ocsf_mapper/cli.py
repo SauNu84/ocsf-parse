@@ -135,6 +135,24 @@ def cmd_generate(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_serve(args: argparse.Namespace) -> int:
+    try:
+        import uvicorn
+    except ImportError:
+        print(
+            "error: 'serve' requires the web deps. "
+            "Install with: pip install ocsf-mapper[web]",
+            file=sys.stderr,
+        )
+        return 2
+    from ocsf_mapper.web import create_app
+
+    app = create_app(root=args.root or Path.cwd())
+    print(f"ocsf-mapper UI ready at http://{args.host}:{args.port}", file=sys.stderr)
+    uvicorn.run(app, host=args.host, port=args.port, log_level="info")
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # parser
 # ---------------------------------------------------------------------------
@@ -185,6 +203,16 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--provider", choices=["anthropic", "openai", "fixture"],
                     help="Force LLM provider (default: env-detect).")
     sp.set_defaults(func=cmd_generate)
+
+    # serve
+    sp = sub.add_parser("serve", help="Run the local web UI (Phase B).")
+    sp.add_argument("--host", default="127.0.0.1",
+                    help="Bind host (default: 127.0.0.1 — localhost only).")
+    sp.add_argument("--port", type=int, default=8000,
+                    help="Bind port (default: 8000).")
+    sp.add_argument("--root", default=None,
+                    help="Repo root containing mappings/ and samples/ (default: cwd).")
+    sp.set_defaults(func=cmd_serve)
 
     return p
 

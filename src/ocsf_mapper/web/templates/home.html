@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}ocsf-mapper — catalog{% endblock %}
+{% block content %}
+<section class="hero">
+  <h1>Log sources mapped to OCSF</h1>
+  <p class="summary">
+    {{ totals.total }} sources •
+    {{ totals.ok }} lint-clean •
+    {% for p, n in totals.by_priority.items() %}
+      <span class="badge pri-{{ p }}">{{ n }} {{ p }}</span>
+    {% endfor %}
+  </p>
+</section>
+
+<section class="card-grid">
+  {% for r in rows %}
+  <a class="card" href="/sources/{{ r.source }}">
+    <div class="card-head">
+      <span class="display">{{ r.display_name }}</span>
+      <span class="badge pri-{{ r.priority }}">{{ r.priority }}</span>
+    </div>
+    <div class="card-body">
+      <div class="vendor">{{ r.vendor }}</div>
+      <div class="ocsf">
+        <span class="cat">{{ r.ocsf.category_name }}</span>
+        <span class="sep">›</span>
+        <span class="cls">{{ r.ocsf.class_name }}</span>
+        <span class="uid">({{ r.ocsf.class_uid }})</span>
+      </div>
+      <div class="desc">{{ r.description }}</div>
+    </div>
+    <div class="card-foot">
+      <span class="status status-{{ r.lint_status }}">
+        {% if r.lint_status == "ok" %}✓{% elif r.lint_status == "fail" %}✗{% else %}·{% endif %}
+        {{ r.lint_status }}
+      </span>
+      <span class="count">{{ r.event_count }} sample event(s)</span>
+    </div>
+  </a>
+  {% endfor %}
+</section>
+{% endblock %}

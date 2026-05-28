@@ -1,0 +1,43 @@
+<div class="output-result">
+  <p class="result-summary">
+    <strong>{{ total }}</strong> event(s):
+    <span class="ok">✓ {{ ok }}</span>
+    <span class="warn">⚠ {{ warn }}</span>
+    <span class="fail">✗ {{ fail }}</span>
+  </p>
+  <table class="result-table">
+    <thead>
+      <tr>
+        <th>Raw input</th>
+        <th>OCSF event</th>
+        <th>Validation</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in results %}
+      <tr>
+        <td class="cell-raw"><pre>{{ r.raw }}</pre></td>
+        <td class="cell-ocsf">
+          {% if r.event %}
+            <span class="class-pill">{{ r.class_name }}</span>
+            <pre>{{ r.event | tojson(indent=2) }}</pre>
+          {% else %}
+            <em class="error">{{ r.error }}</em>
+          {% endif %}
+        </td>
+        <td class="cell-validation">
+          {% if r.validation %}
+            <ul class="issues">
+              {% for v in r.validation %}<li>{{ v }}</li>{% endfor %}
+            </ul>
+          {% elif r.event %}
+            <span class="ok">✓ valid</span>
+          {% else %}
+            —
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}{{ name }} — ocsf-mapper{% endblock %}
+{% block content %}
+<section class="source-head">
+  <a href="/" class="back">← all sources</a>
+  <h1>{{ entry.display_name }}</h1>
+  <p class="meta">
+    <span class="badge pri-{{ entry.priority }}">{{ entry.priority }}</span>
+    <span class="vendor">{{ entry.vendor }}</span>
+    <span class="sep">·</span>
+    <span class="cat">{{ entry.ocsf.category_name }}</span>
+    <span class="sep">›</span>
+    <span class="cls">{{ entry.ocsf.class_name }}</span>
+    <span class="uid">({{ entry.ocsf.class_uid }})</span>
+  </p>
+  <p class="desc">{{ entry.description }}</p>
+</section>
+
+<nav class="tabs">
+  <button class="tab active"
+          hx-get="/sources/{{ name }}/sample"
+          hx-target="#tabpanel"
+          hx-on::after-request="document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));this.classList.add('active')">
+    Sample
+  </button>
+  <button class="tab"
+          hx-on:click="document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));this.classList.add('active');document.getElementById('tabpanel').innerHTML=document.getElementById('output-tab').innerHTML">
+    Output
+  </button>
+</nav>
+
+<section id="tabpanel" class="tabpanel"
+         hx-get="/sources/{{ name }}/sample"
+         hx-trigger="load"></section>
+
+<template id="output-tab">
+  <div class="output-tab">
+    <p class="hint">Drop a log file below to apply <code>{{ name }}.json</code> and see the OCSF output side-by-side.</p>
+    <form hx-post="/sources/{{ name }}/apply"
+          hx-encoding="multipart/form-data"
+          hx-target="#apply-result"
+          class="drop-form">
+      <input type="file" name="file" accept=".log,.jsonl,.json,.ndjson,.txt" required>
+      <button type="submit">Apply mapping</button>
+    </form>
+    <div id="apply-result"></div>
+  </div>
+</template>
+{% endblock %}
