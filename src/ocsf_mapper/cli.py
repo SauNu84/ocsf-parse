@@ -160,6 +160,16 @@ def cmd_schema_diff(args: argparse.Namespace) -> int:
     return schema_diff_main([args.ref, args.folder])
 
 
+def cmd_benchmark(args: argparse.Namespace) -> int:
+    from ocsf_mapper.benchmark import benchmark, render_report
+    config = _load_mapping(args.mapping)
+    result = benchmark(config, args.sample,
+                       min_events=args.min_events,
+                       max_seconds=args.max_seconds)
+    print(render_report(result), end="")
+    return 0
+
+
 def cmd_generate(args: argparse.Namespace) -> int:
     from ocsf_mapper.generate import generate
     from ocsf_mapper.providers import get_provider
@@ -295,6 +305,19 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("folder", nargs="?", default="mappings",
                     help="Mappings folder (default: ./mappings).")
     sp.set_defaults(func=cmd_schema_diff)
+
+    # benchmark
+    sp = sub.add_parser(
+        "benchmark",
+        help="Per-phase throughput for a mapping × sample (parse / route / map / write).",
+    )
+    sp.add_argument("mapping", help="Path to a mappings/<name>.json file.")
+    sp.add_argument("sample",  help="Path to a sample log file.")
+    sp.add_argument("--min-events", type=int, default=5000,
+                    help="Run at least N events before reporting (default: 5000).")
+    sp.add_argument("--max-seconds", type=float, default=2.0,
+                    help="Cap total wall time at S seconds (default: 2.0).")
+    sp.set_defaults(func=cmd_benchmark)
 
     # generate
     sp = sub.add_parser("generate", help="LLM-draft a new mapping from a sample.")
