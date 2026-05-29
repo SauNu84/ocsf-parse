@@ -25,11 +25,11 @@ per-class.
 
 from __future__ import annotations
 
-import json
 import re
 from functools import lru_cache
 from typing import Any, Iterable, Iterator, Mapping, Optional, Tuple
 
+from ocsf_mapper._fastjson import loads as _json_loads
 from ocsf_mapper.ops import apply_op, resolve_expr, set_path
 
 
@@ -56,7 +56,7 @@ def parse_record(raw_line: str, parser_spec: Any) -> Optional[dict]:
     caller is expected to skip them.
     """
     if parser_spec == "json":
-        rec = json.loads(raw_line)
+        rec = _json_loads(raw_line)
         rec["__raw__"] = raw_line.rstrip("\n")
         return rec
     if isinstance(parser_spec, dict) and "regex" in parser_spec:

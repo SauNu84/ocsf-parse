@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-import json
 import sys
 
+from ocsf_mapper._fastjson import dumps as _json_dumps
 from ocsf_mapper.sinks.base import _SinkBase
 
 
 class StdoutSink(_SinkBase):
     def write_one(self, event: dict) -> None:
-        sys.stdout.write(json.dumps(event, ensure_ascii=False) + "\n")
+        sys.stdout.write(_json_dumps(event) + "\n")
 
     def close(self) -> None:
         sys.stdout.flush()

@@ -28,6 +28,7 @@ dependencies = []
 anthropic = ["anthropic>=0.34"]
 openai    = ["openai>=1.40"]
 parquet   = ["pyarrow>=14"]
+fast      = ["orjson>=3.10"]
 web = [
     "fastapi>=0.110",
     "uvicorn[standard]>=0.27",
