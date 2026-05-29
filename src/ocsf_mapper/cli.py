@@ -62,15 +62,33 @@ def _load_mapping(mapping_arg: str) -> dict:
 
 def cmd_apply(args: argparse.Namespace) -> int:
     config = _load_mapping(args.mapping)
-    lines = _read_lines(args.input)
 
     sink_kind = args.sink or infer_kind(args.output)
     sink_path = None if sink_kind == "stdout" else args.output
     if sink_kind != "stdout" and sink_path is None:
-        # No output given but a non-stdout sink requested → require a path.
         print(f"error: --sink {sink_kind} requires an output path", file=sys.stderr)
         return 2
 
+    # Multiprocess fan-out: only for real files (not stdin) and only when the
+    # sink is multi-writer safe. Per-worker outputs are foo.NN.<ext> for file
+    # sinks, or part-wNN-NNNNN.parquet for security-lake. PII redaction is
+    # disabled here because RedactingSink wraps a single sink instance and
+    # the workers each construct their own; future revision can wire it
+    # through if needed.
+    if args.workers and args.workers > 1 and args.input != "-" and sink_kind != "stdout":
+        if args.redact:
+            print("error: --redact is not yet supported with --workers", file=sys.stderr)
+            return 2
+        from ocsf_mapper.parallel import apply_parallel
+        n = apply_parallel(
+            config, args.input, sink_path,
+            n_workers=args.workers, sink_kind=sink_kind,
+        )
+        print(f"wrote {n} event(s) across {args.workers} worker(s) -> {sink_path}",
+              file=sys.stderr)
+        return 0
+
+    lines = _read_lines(args.input)
     sink = get_sink(sink_kind, sink_path)
     if args.redact:
         from ocsf_mapper.redact import ALL_KINDS, RedactingSink
@@ -234,6 +252,14 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Redact PII before writing. Pass kinds to opt into a subset "
              "(email ipv4 ssn phone jwt ccn), or just --redact for all.",
+    )
+    sp.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="Fan out across N worker processes. Per-worker outputs are "
+             "<output>.NN.<ext> (file sinks) or part-wNN-NNNNN.parquet "
+             "(security-lake). Requires a real input file (no stdin).",
     )
     sp.set_defaults(func=cmd_apply)
 
