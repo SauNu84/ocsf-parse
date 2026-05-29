@@ -1,6 +1,9 @@
 """Parquet sink (optional dep: ``pyarrow``).
 
-Direct compatibility with AWS Security Lake's expected format. Install with::
+Single-file Parquet output. For partitioned Security-Lake-style layouts
+see :class:`ocsf_mapper.sinks.security_lake.SecurityLakeSink`.
+
+Install with::
 
     pip install ocsf-mapper[parquet]
 """
@@ -8,7 +11,7 @@ Direct compatibility with AWS Security Lake's expected format. Install with::
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Iterable, Optional
 
 from ocsf_mapper.sinks.base import _SinkBase
 
@@ -16,11 +19,18 @@ from ocsf_mapper.sinks.base import _SinkBase
 class ParquetSink(_SinkBase):
     """Buffered Parquet sink — flushes on :meth:`close`.
 
-    Buffering means memory grows with event count; for very large batches use
-    JsonlSink and convert downstream.
+    Pass ``schema=`` (a ``pyarrow.Schema``) to skip per-flush type inference,
+    which matters when the event payload is large or the inferred schema
+    drifts between flushes. Use
+    :func:`ocsf_mapper.sinks.security_lake.infer_schema_from` to build one
+    from a representative sample event.
+
+    Buffers all rows in memory; for very large inputs use
+    :class:`~ocsf_mapper.sinks.security_lake.SecurityLakeSink` which flushes
+    by partition.
     """
 
-    def __init__(self, path: Path | str) -> None:
+    def __init__(self, path: Path | str, schema: Optional[Any] = None) -> None:
         try:
             import pyarrow  # noqa: F401  # ensure dep is present
             import pyarrow.parquet  # noqa: F401
@@ -30,6 +40,7 @@ class ParquetSink(_SinkBase):
             ) from e
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.schema = schema
         self._rows: list[dict] = []
 
     def write_one(self, event: dict) -> None:
@@ -47,8 +58,7 @@ class ParquetSink(_SinkBase):
         import pyarrow.parquet as pq
 
         if not self._rows:
-            # Write an empty parquet file with no columns rather than skipping.
-            table = pa.Table.from_pylist([])
+            table = pa.Table.from_pylist([], schema=self.schema)
         else:
-            table = pa.Table.from_pylist(self._rows)
+            table = pa.Table.from_pylist(self._rows, schema=self.schema)
         pq.write_table(table, self.path)

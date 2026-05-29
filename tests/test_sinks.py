@@ -187,3 +187,94 @@ def test_get_sink_security_lake(tmp_path):
     assert sink.__class__.__name__ == "SecurityLakeSink"
     sink2 = get_sink("security_lake", tmp_path)
     assert sink2.__class__.__name__ == "SecurityLakeSink"
+
+
+# ---------------------------------------------------------------------------
+# Streaming / rolling SecurityLakeSink (Perf #1)
+# ---------------------------------------------------------------------------
+
+
+def test_security_lake_flushes_on_threshold(tmp_path):
+    """With flush_every=N, each partition rolls a new file every N events."""
+    pq = pytest.importorskip("pyarrow.parquet")
+    from ocsf_mapper.sinks.security_lake import SecurityLakeSink
+
+    day1 = 1779891791000  # 2026-05-27 14:23:11 UTC
+    events = [{"class_uid": 6003, "time": day1, "x": i} for i in range(450)]
+
+    with SecurityLakeSink(tmp_path, flush_every=200) as s:
+        s.write_many(events)
+        # After 450 inserts the bucket has 50 rows remaining (the tail).
+        assert s.partitions() == {("6003", "20260527"): 50}
+
+    files = sorted(tmp_path.rglob("*.parquet"))
+    assert len(files) == 3
+    rows = [pq.read_table(f).num_rows for f in files]
+    assert rows == [200, 200, 50]
+
+
+def test_security_lake_does_not_overwrite_existing_parts(tmp_path):
+    """A second run on the same root should start naming from the next free part-N."""
+    pq = pytest.importorskip("pyarrow.parquet")
+    from ocsf_mapper.sinks.security_lake import SecurityLakeSink
+
+    day1 = 1779891791000  # 2026-05-27
+    # First run: 250 events at flush_every=200 → 2 parts.
+    with SecurityLakeSink(tmp_path, flush_every=200) as s1:
+        s1.write_many([{"class_uid": 6003, "time": day1, "x": i} for i in range(250)])
+    assert len(list(tmp_path.rglob("*.parquet"))) == 2
+
+    # Second run: more events on the same root.
+    with SecurityLakeSink(tmp_path, flush_every=200) as s2:
+        s2.write_many([{"class_uid": 6003, "time": day1, "y": i} for i in range(100)])
+    parts = sorted(tmp_path.rglob("*.parquet"))
+    # Should have 3 files now, numbered 00000, 00001 (from first run), 00002 (from second).
+    assert [p.name for p in parts] == ["part-00000.parquet", "part-00001.parquet", "part-00002.parquet"]
+
+
+def test_security_lake_flush_every_must_be_positive(tmp_path):
+    from ocsf_mapper.sinks.security_lake import SecurityLakeSink
+    with pytest.raises(ValueError):
+        SecurityLakeSink(tmp_path, flush_every=0)
+
+
+def test_security_lake_flushed_rows_tracks_disk_writes(tmp_path):
+    pytest.importorskip("pyarrow")
+    from ocsf_mapper.sinks.security_lake import SecurityLakeSink
+
+    day1 = 1779891791000  # 2026-05-27
+    with SecurityLakeSink(tmp_path, flush_every=10) as s:
+        s.write_many([{"class_uid": 6003, "time": day1, "x": i} for i in range(25)])
+        # 20 events flushed (2 × 10), 5 still buffered.
+        assert s.flushed_rows() == {("6003", "20260527"): 20}
+        assert s.partitions() == {("6003", "20260527"): 5}
+
+
+# ---------------------------------------------------------------------------
+# Parquet schema pre-declaration (Perf #6)
+# ---------------------------------------------------------------------------
+
+
+def test_parquet_sink_with_declared_schema(tmp_path):
+    """A pre-declared schema is honoured on write (skips type re-inference)."""
+    pa = pytest.importorskip("pyarrow")
+    pq = pytest.importorskip("pyarrow.parquet")
+    from ocsf_mapper.sinks.parquet import ParquetSink
+    from ocsf_mapper.sinks.security_lake import infer_schema_from
+
+    sample = {"class_uid": 3002, "time": 1716818591000, "name": "alice"}
+    schema = infer_schema_from(sample)
+    out = tmp_path / "out.parquet"
+    with ParquetSink(out, schema=schema) as s:
+        s.write_many([sample, sample])
+    table = pq.read_table(out)
+    assert table.num_rows == 2
+    assert table.schema.equals(schema)
+
+
+def test_infer_schema_from_returns_pyarrow_schema():
+    pa = pytest.importorskip("pyarrow")
+    from ocsf_mapper.sinks.security_lake import infer_schema_from
+
+    s = infer_schema_from({"a": 1, "b": "x"})
+    assert "a" in s.names and "b" in s.names
