@@ -1,0 +1,77 @@
+name: Publish to PyPI
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build sdist + wheel
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (with submodules — needed for tests + lint)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install build deps
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install build
+
+      - name: Sanity-check version
+        # Refuse to build if pyproject's version doesn't match the git tag.
+        # Prevents "v0.3.0 ships 0.2.0 wheels" accidents.
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PYPROJECT_VER=$(python -c "import tomllib, pathlib; print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")
+          INIT_VER=$(python -c "import re, pathlib; print(re.search(r'__version__ = \"([^\"]+)\"', pathlib.Path('src/ocsf_mapper/__init__.py').read_text()).group(1))")
+          echo "tag=$TAG  pyproject=$PYPROJECT_VER  __init__=$INIT_VER"
+          test "$TAG" = "$PYPROJECT_VER"
+          test "$TAG" = "$INIT_VER"
+
+      - name: Install package + dev deps + run tests
+        run: |
+          python -m pip install -e '.[dev,web,parquet,fast]'
+          python -m pytest -q
+
+      - name: Lint every mapping
+        run: python -m ocsf_mapper.lint mappings/
+
+      - name: Build distributions
+        run: python -m build
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/ocsf-mapper
+    permissions:
+      id-token: write   # Trusted Publisher: OIDC token, no API key needed
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
