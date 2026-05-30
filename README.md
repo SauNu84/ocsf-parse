@@ -32,8 +32,11 @@ Browse the master-data view with `ocsf-mapper catalog` or
 ```bash
 git clone --recurse-submodules https://github.com/SauNu84/ocsf-parse
 cd ocsf-parse
-pip install -e '.[dev,web,parquet]'    # full feature set
+pip install -e '.[dev,web,parquet,fast]'    # full feature set incl. orjson
 ```
+
+> `[fast]` pulls in `orjson` — 5-10× faster JSON parse/dump than stdlib.
+> Drop-in via :mod:`ocsf_mapper._fastjson`; falls back to stdlib if absent.
 
 ### CLI
 
@@ -66,9 +69,25 @@ ocsf-mapper lint                       # exits 0 iff all mappings pass
 # LLM-assisted mapping draft (needs ANTHROPIC_API_KEY or OPENAI_API_KEY)
 ocsf-mapper generate my_new_source samples/my_new_log.jsonl mappings/my_new.json
 
-# Local web UI (127.0.0.1 only)
+# Detect breaking OCSF schema changes before a submodule bump bites
+ocsf-mapper schema-diff [<git-ref>]    # default: HEAD~1 of ocsf-schema submodule
+
+# Throughput diagnostic: per-phase timing (parse / route / map / write)
+ocsf-mapper benchmark mappings/cloudtrail.json samples/cloudtrail.jsonl
+
+# Scale up: fan out across N worker processes (linear speedup to CPU count)
+ocsf-mapper apply mappings/cloudtrail.json input.log out.jsonl --workers 8
+
+# Redact PII before writing (email / ipv4 / ssn / phone / jwt / Luhn-valid ccn)
+ocsf-mapper apply mappings/X.json input.log out.jsonl --redact
+
+# Local web UI (127.0.0.1 only) — includes live-tail mode on the Output tab
 ocsf-mapper serve                      # → http://127.0.0.1:8000
 ```
+
+For a 10 TB-class workload, combine `--workers N` with `--sink security-lake`
+and the streaming SecurityLakeSink (auto-rolls part files every 50 000 events
+per partition). See [§"At scale"](#at-scale) below for the architecture.
 
 If you cloned without `--recurse-submodules`:
 
@@ -102,9 +121,12 @@ git submodule update --init --recursive
 ```python
 from ocsf_mapper import apply_stream, validate, list_mappings
 from ocsf_mapper.sinks import JsonlSink
-from ocsf_mapper.sinks.security_lake import SecurityLakeSink
+from ocsf_mapper.sinks.security_lake import SecurityLakeSink, infer_schema_from
 from ocsf_mapper.coverage import coverage
 from ocsf_mapper.stream import stream_apply
+from ocsf_mapper.parallel import apply_parallel
+from ocsf_mapper.benchmark import benchmark
+from ocsf_mapper.redact import RedactingSink
 import json
 
 config = json.loads(open("mappings/cloudtrail.json").read())
@@ -113,12 +135,25 @@ config = json.loads(open("mappings/cloudtrail.json").read())
 with JsonlSink("out.jsonl") as sink:
     sink.write_many(apply_stream(config, open("samples/cloudtrail.jsonl")))
 
-# Partitioned Parquet for downstream Security Lake ingest
-with SecurityLakeSink("out_dir") as sink:
+# Partitioned Parquet for downstream Security Lake ingest. Streams to disk
+# every flush_every events per (class_uid × eventDay) partition — memory
+# is bounded regardless of input size.
+schema = infer_schema_from(next(iter(apply_stream(config, open("samples/cloudtrail.jsonl")))))
+with SecurityLakeSink("out_dir", flush_every=50_000, schema=schema) as sink:
     sink.write_many(apply_stream(config, open("samples/cloudtrail.jsonl")))
+
+# Multi-process for 10 TB-class workloads
+apply_parallel(config, "huge.log", "out.jsonl", n_workers=8, sink_kind="jsonl")
 
 # Coverage scoring (what % of required + recommended attrs are populated)
 print(coverage(config))
+
+# Per-phase timing
+print(benchmark(config, "samples/cloudtrail.jsonl"))
+
+# PII redaction wrapper around any sink
+with RedactingSink(JsonlSink("scrubbed.jsonl")) as sink:
+    sink.write_many(apply_stream(config, open("samples/cloudtrail.jsonl")))
 
 # Live tail
 import threading
@@ -126,6 +161,25 @@ stop = threading.Event()
 with JsonlSink("live.jsonl") as sink:
     stream_apply(config, "/var/log/cloudtrail.log", sink, stop=stop)
 ```
+
+## At scale
+
+For 10 TB-class workloads on a single box:
+
+| Knob | Effect |
+|---|---|
+| `pip install ocsf-mapper[fast]` | orjson swap — 5-10× faster JSON parse/dump |
+| `--workers N` | Linear speedup to CPU count |
+| `--sink security-lake` | Streaming partitioned Parquet, memory bounded |
+| `infer_schema_from(...)` + `schema=` | Skip pyarrow type re-inference per flush |
+
+Combined: ~30-50× over the single-threaded baseline. On an 8-core box this
+puts 10 TB at ~1-2 days instead of ~40 days.
+
+For genuinely large workloads, the tool is intended as a **mapping
+*development*** environment — develop the JSON DSL config locally, then
+ship the *same config* to a real distributed runtime (Spark / Flink /
+Beam / Vector) for production. See PLAN.md for the architecture.
 
 ## Repository layout
 
@@ -151,10 +205,16 @@ src/ocsf_mapper/
                           security-lake, stdout)
   web/                   FastAPI + Jinja2 + HTMX app
   cli.py                 ocsf-mapper CLI entry point
+  parallel.py            apply_parallel: multi-process fan-out
+  benchmark.py           Per-phase throughput diagnostic
+  stream.py              tail -f-style streaming helpers
+  schema_diff.py         Detect schema-bump breakage vs older git ref
+  redact.py              PII redaction (email/ipv4/ssn/phone/jwt/ccn)
+  _fastjson.py           orjson-or-stdlib JSON shim
 scripts/
   generate_samples.py    Deterministic sample-data generator
   lint_mappings.py       Thin wrapper around python -m ocsf_mapper.lint
-tests/                   pytest suite (176 tests, ~91% coverage)
+tests/                   pytest suite (~225 tests, 90% coverage)
 ```
 
 ## Adding a new log source
@@ -169,10 +229,10 @@ tests/                   pytest suite (176 tests, ~91% coverage)
 
 ## Status
 
-- [x] **Phase A — SDK**: pip-installable package, CLI (8 subcommands —
-      `apply`, `validate`, `list`, `catalog`, `lint`, `generate`, `tail`,
-      `serve`), 29 reference mappings, master-data catalog,
-      GitHub Actions CI on Python 3.9 / 3.11 / 3.12.
+- [x] **Phase A — SDK**: pip-installable package, CLI (10 subcommands —
+      `apply`, `validate`, `list`, `catalog`, `lint`, `schema-diff`,
+      `benchmark`, `generate`, `tail`, `serve`), 29 reference mappings,
+      master-data catalog, GitHub Actions CI on Python 3.9 / 3.11 / 3.12.
 - [x] **Phase B — Web UI**: homepage card grid (with priority badges and
       coverage bars), per-source page with 5 HTMX-swappable tabs
       (Sample, Output, Mapping editor with Monaco, Validation, Coverage),

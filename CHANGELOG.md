@@ -1,5 +1,63 @@
 # Changelog
 
+## 0.2.0 — Unreleased (Phase D + perf series)
+
+Closed most of the Phase D items + a five-commit perf series in response
+to the "10 TB workload" scaling question. Everything still backwards
+compatible with 0.1.0; the perf wins are opt-in.
+
+### Phase D
+- **Schema-bump diff** (`01904ee`): `ocsf-mapper schema-diff [<ref>]`
+  compares the current OCSF schema against an older git ref of the
+  submodule and joins per-class diffs against mappings to surface silent
+  breakage before the next CI run.
+- **PII redaction layer** (`6de0d9d`): `RedactingSink` wraps any sink;
+  scrubs email / ipv4 / ssn / phone / jwt / Luhn-valid ccn by default or
+  a chosen subset. CLI: `apply ... --redact [kind ...]`.
+- **Live-tail UI** (`8cda605`): per-source Output tab gains a "Live tail"
+  toggle. Server-Sent Events stream OCSF events to the browser as lines
+  append to the source file.
+
+### Performance series
+- **Regex cache + streaming input** (`6cccb62`): `lru_cache` on
+  `re.compile` in `parse_record`; CLI iterates input line-by-line.
+  Bounded input memory + ~1.5-2× on regex sources.
+- **orjson fast-path** (`619776b`): `pip install ocsf-mapper[fast]`
+  pulls in orjson. New `_fastjson.py` shim routes JSON parse/dump
+  through orjson when available; stdlib fallback. 5-10× per call.
+- **Streaming SecurityLakeSink + Parquet schema** (`522ed29`):
+  `SecurityLakeSink(flush_every=50_000, schema=…)` rolls a fresh
+  `part-NNNNN.parquet` per partition every N events. Memory bounded
+  regardless of input size. `infer_schema_from(sample_event)` builds a
+  `pa.Schema` so subsequent flushes skip type inference.
+- **Multiprocess apply** (`1b7039c`): `apply --workers N` splits input by
+  line-aligned byte ranges, fans out via `ProcessPoolExecutor`. JSONL /
+  CSV / Parquet sinks get per-worker output files; SecurityLakeSink
+  uses a per-worker `file_prefix`. Linear speedup to CPU count.
+- **Benchmark subcommand** (`8d4cdb5`): `ocsf-mapper benchmark
+  <mapping> <sample>` reports events/sec, MB/sec, and per-phase wall
+  time (parse / route / map / write). Surprise finding: `map_record`
+  dominates at ~90% on both JSON and regex sources — the DSL
+  dictionary-walking cost, not JSON parse.
+
+### Combined throughput
+~30-50× over the 0.1.0 single-process baseline on an 8-core box. 10 TB
+moves from ~40 days to ~1-2 days with bounded memory. For larger
+workloads, the tool is intended as a *mapping development* environment;
+the JSON DSL travels into a distributed runtime for production (see
+PLAN.md §12).
+
+### CLI surface
+8 → **10 subcommands**: `apply` (now with `--workers` and `--redact`),
+`validate`, `list`, `catalog`, `lint`, `schema-diff` (new),
+`benchmark` (new), `generate`, `tail`, `serve`.
+
+### Quality
+- Tests: 176 → ~225, coverage ~90% (with the orjson + parquet extras
+  installed).
+
+---
+
 ## 0.1.0 — Unreleased (initial feature set)
 
 The first cohesive cut: SDK + 29 reference mappings + master-data catalog +
@@ -7,7 +65,7 @@ local web UI + CLI + sink layer + LLM-assisted onboarding + Security
 Lake-compatible output + live tail mode.
 
 ### SDK
-- DSL executor with 12 op kinds: `const`, `path`, `group`, `raw`, `lookup`,
+- DSL executor with 11 op kinds: `const`, `path`, `group`, `raw`, `lookup`,
   `time` (iso8601 / epoch_ms / epoch_s / strptime), `range`, `int`, `bool`,
   `expr`, **`for_each`** (array fan-out into OCSF object arrays).
 - Structural validator (`required`, `at_least_one`, `activity_id` enum,

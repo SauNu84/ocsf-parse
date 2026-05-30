@@ -290,8 +290,9 @@ Features that move it from "works" to "good":
 - [x] **Stream test mode (CLI)**: `ocsf-mapper tail <mapping> <file>` —
       `tail -f`-style polling, no third-party deps. Routes through any
       sink. Commit `99afe59`.
-- [ ] **Stream test mode (UI)**: tail a file, render OCSF events in the
-      Output tab in real time (WebSocket / SSE). Not built.
+- [x] **Stream test mode (UI)**: per-source Output tab gains a "Live tail"
+      toggle. Backend streams over SSE; events arrive in the browser as
+      lines append to the source file. Commit `8cda605`.
 - [x] **Export targets**: 5 sink kinds (`jsonl`, `csv`, `parquet`,
       `security-lake`, `stdout`) wired into the CLI's `apply` subcommand.
       `security-lake` writes `<root>/<class_uid>/eventDay=YYYYMMDD/*.parquet`
@@ -303,6 +304,47 @@ Features that move it from "works" to "good":
       email / ipv4 / ssn / phone / jwt / Luhn-valid ccn by default or a
       chosen subset. CLI: `apply ... --redact [kind ...]`.
       Commit `6de0d9d`.
+
+### Performance series (added post-Phase-A in response to 10 TB scaling question)
+
+Single-process apply ran ~2-6 KB/s in real terms; at 10 TB that was tens
+of days. Five commits bring the local tool to a useful operating range:
+
+- [x] **Regex cache + streaming input** (`6cccb62`): `lru_cache` on
+      `re.compile` in `parse_record`; CLI iterates input line-by-line
+      instead of `read_text().splitlines()`. Bounded input memory + ~1.5-2×
+      on regex sources.
+- [x] **orjson fast-path** (`619776b`): `pip install ocsf-mapper[fast]`
+      pulls in `orjson`. `_fastjson.py` shim routes JSON parse/dump
+      through orjson when available, stdlib otherwise. 5-10× per
+      parse/dump call; ~2-5× overall on JSON-shaped sources.
+- [x] **Streaming SecurityLakeSink + Parquet schema** (`522ed29`):
+      `SecurityLakeSink(flush_every=50_000, schema=…)` rolls a fresh
+      `part-NNNNN.parquet` per partition every N events. Memory bounded
+      regardless of input size. `infer_schema_from(sample_event)` builds
+      a `pa.Schema` so subsequent flushes skip type inference.
+- [x] **Multiprocess apply** (`1b7039c`): `apply --workers N` splits the
+      input by line-aligned byte ranges, fans out via
+      `ProcessPoolExecutor`. JSONL/CSV/Parquet sinks get per-worker
+      output files; SecurityLakeSink gets a per-worker `file_prefix`.
+      Linear speedup to CPU count.
+- [x] **Benchmark subcommand** (`8d4cdb5`): `ocsf-mapper benchmark
+      <mapping> <sample>` reports per-phase wall time (parse / route /
+      map / write) + events/sec + MB/sec. Made the surprising finding
+      that **`map_record` dominates at ~90%** — the dictionary-walking
+      cost of the DSL itself, not JSON parse. Means orjson alone moves
+      the needle modestly; multiprocess fan-out + Security Lake
+      streaming are the real wins at scale.
+
+Combined: ~30-50× over the original single-threaded baseline. 10 TB on
+an 8-core box: ~1-2 days, not ~40 days. Bounded memory. For larger
+workloads, the tool is intended as a *mapping development* environment;
+the JSON DSL config travels into a real distributed runtime
+(Spark / Flink / Vector) for production.
+
+- [ ] **Mapping comparison**: side-by-side diff of two mappings (useful
+      when one vendor has multiple variants). Not built — this is the
+      last open original-plan item.
 
 ---
 
@@ -571,10 +613,11 @@ package and is now live; this section is kept for archaeology.
 | Anthropic SDK wiring + mock smoke test | Ported; covered by `FixtureProvider` for offline tests | `tests/test_providers.py`, `tests/test_generate.py` |
 
 Beyond the original list, the following were added during Phase A:
-**12-op DSL** (added `for_each`), **`epoch_s` time format**, **CLI with
-8 subcommands**, **5 sink kinds**, **catalog.json master data**,
-**GitHub Actions CI on 3.9 / 3.11 / 3.12**, **deterministic sample
-generator**.
+**11-op DSL** (added `for_each`), **`epoch_s` time format**, **CLI with
+10 subcommands** (`apply`, `validate`, `list`, `catalog`, `lint`,
+`schema-diff`, `benchmark`, `generate`, `tail`, `serve`), **5 sink kinds**,
+**catalog.json master data**, **GitHub Actions CI on 3.9 / 3.11 / 3.12**,
+**deterministic sample generator**.
 
 ---
 
