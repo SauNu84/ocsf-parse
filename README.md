@@ -174,7 +174,9 @@ For 10 TB-class workloads on a single box:
 | `infer_schema_from(...)` + `schema=` | Skip pyarrow type re-inference per flush |
 
 Combined: ~30-50× over the single-threaded baseline. On an 8-core box this
-puts 10 TB at ~1-2 days instead of ~40 days.
+puts 10 TB at ~1-2 days instead of ~40 days. See
+[`BENCHMARKS.md`](./BENCHMARKS.md) for per-mapping throughput numbers
+and the phase breakdown that motivates the multi-process gain.
 
 For genuinely large workloads, the tool is intended as a **mapping
 *development*** environment — develop the JSON DSL config locally, then
