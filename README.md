@@ -29,14 +29,33 @@ Browse the master-data view with `ocsf-mapper catalog` or
 
 ## Quickstart
 
+### From PyPI (once 0.3.0 ships)
+
+```bash
+pip install 'ocsf-mapper[web,parquet,fast]'
+ocsf-mapper list
+```
+
+### From source (for development)
+
 ```bash
 git clone --recurse-submodules https://github.com/SauNu84/ocsf-parse
 cd ocsf-parse
 pip install -e '.[dev,web,parquet,fast]'    # full feature set incl. orjson
 ```
 
+### From Docker (zero-install)
+
+```bash
+docker run --rm -p 8000:8000 ghcr.io/saunu84/ocsf-mapper:0.3.0
+# → web UI on http://127.0.0.1:8000
+
+# or pin to "latest" tag:
+docker run --rm ghcr.io/saunu84/ocsf-mapper:latest list
+```
+
 > `[fast]` pulls in `orjson` — 5-10× faster JSON parse/dump than stdlib.
-> Drop-in via :mod:`ocsf_mapper._fastjson`; falls back to stdlib if absent.
+> Drop-in via `ocsf_mapper._fastjson`; falls back to stdlib if absent.
 
 ### CLI
 

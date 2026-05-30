@@ -1,0 +1,33 @@
+# Keep the build context small + reproducible.
+
+.git
+.github
+.venv
+venv
+__pycache__
+*.pyc
+.pytest_cache
+.coverage
+htmlcov
+build
+dist
+*.egg-info
+.mypy_cache
+.ruff_cache
+.tox
+.idea
+.vscode
+.DS_Store
+
+# Tests don't ship in the image (the package is the deliverable, not the
+# tests). If a downstream user wants to run them, they can `pip install
+# -e '.[dev]'` from a checkout.
+tests/
+
+# Local scratch files
+_lint_*
+*.phase1.prompt.txt
+*.phase2.prompt.txt
+
+# Claude Code local config
+.claude/
