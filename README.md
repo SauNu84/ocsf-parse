@@ -231,10 +231,11 @@ tests/                   pytest suite (~225 tests, 90% coverage)
 
 ## Status
 
-- [x] **Phase A — SDK**: pip-installable package, CLI (10 subcommands —
+- [x] **Phase A — SDK**: pip-installable package, CLI (11 subcommands —
       `apply`, `validate`, `list`, `catalog`, `lint`, `schema-diff`,
-      `benchmark`, `generate`, `tail`, `serve`), 29 reference mappings,
-      master-data catalog, GitHub Actions CI on Python 3.9 / 3.11 / 3.12.
+      `benchmark`, `diff`, `generate`, `tail`, `serve`), 29 reference
+      mappings, master-data catalog, GitHub Actions CI on Python 3.9 /
+      3.11 / 3.12.
 - [x] **Phase B — Web UI**: homepage card grid (with priority badges and
       coverage bars), per-source page with 5 HTMX-swappable tabs
       (Sample, Output, Mapping editor with Monaco, Validation, Coverage),
@@ -252,9 +253,9 @@ tests/                   pytest suite (~225 tests, 90% coverage)
         against mappings to surface silent breakage)
   - [x] PII redaction layer (`apply ... --redact`; scrubs email / ipv4
         / ssn / phone / jwt / Luhn-valid ccn)
-  - [ ] WebSocket live-tail UI mode (server-side `tail` pushed to the
-        Output tab over SSE/WebSocket)
-  - [ ] Mapping comparison (side-by-side diff of two mappings)
+  - [x] WebSocket live-tail UI mode (Server-Sent Events from the Output
+        tab stream new OCSF events as the source file appends)
+  - [x] Mapping comparison (`ocsf-mapper diff <a.json> <b.json>`)
 
 See [`CHANGELOG.md`](./CHANGELOG.md) for the per-feature commit timeline
 and [`PLAN.md`](./PLAN.md) for the original architecture and design

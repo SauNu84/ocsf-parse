@@ -298,8 +298,9 @@ Features that move it from "works" to "good":
       `security-lake` writes `<root>/<class_uid>/eventDay=YYYYMMDD/*.parquet`
       for AWS Security Lake ingest. Commit `efec7e7`.
       UI export drop-down: not built.
-- [ ] **Mapping comparison**: side-by-side diff of two mappings (useful
-      when one vendor has multiple variants). Not built.
+- [x] **Mapping comparison**: see "Mapping comparison" entry below
+      (under the perf series — it shipped as part of step 3 of the
+      1→2→3→4 post-perf finish).
 - [x] **PII redaction layer**: `RedactingSink` wraps any sink; scrubs
       email / ipv4 / ssn / phone / jwt / Luhn-valid ccn by default or a
       chosen subset. CLI: `apply ... --redact [kind ...]`.
