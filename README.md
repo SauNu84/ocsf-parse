@@ -181,7 +181,10 @@ and the phase breakdown that motivates the multi-process gain.
 For genuinely large workloads, the tool is intended as a **mapping
 *development*** environment — develop the JSON DSL config locally, then
 ship the *same config* to a real distributed runtime (Spark / Flink /
-Beam / Vector) for production. See PLAN.md for the architecture.
+Beam / Vector) for production. See [`DESIGN_DISTRIBUTED.md`](./DESIGN_DISTRIBUTED.md)
+for the architecture: how the JSON DSL travels into a Spark UDF, a Flink
+streaming job, or Vector/Fluentbit agents, plus CI-gate patterns for
+schema-bump pre-flight and coverage drift.
 
 ## Repository layout
 
