@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0 — Unreleased (Phase D + perf series)
+## 0.2.0 — 2026-05-30 (Phase D + perf series)
 
 Closed most of the Phase D items + a five-commit perf series in response
 to the "10 TB workload" scaling question. Everything still backwards
