@@ -170,6 +170,17 @@ def cmd_benchmark(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_diff(args: argparse.Namespace) -> int:
+    from ocsf_mapper.mapping_diff import diff_mappings, render_text_report
+    diff = diff_mappings(args.a, args.b)
+    if args.json:
+        print(json.dumps(diff, indent=2))
+    else:
+        names = (Path(args.a).stem, Path(args.b).stem)
+        print(render_text_report(diff, names=names), end="")
+    return 0
+
+
 def cmd_generate(args: argparse.Namespace) -> int:
     from ocsf_mapper.generate import generate
     from ocsf_mapper.providers import get_provider
@@ -318,6 +329,17 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--max-seconds", type=float, default=2.0,
                     help="Cap total wall time at S seconds (default: 2.0).")
     sp.set_defaults(func=cmd_benchmark)
+
+    # diff
+    sp = sub.add_parser(
+        "diff",
+        help="Side-by-side diff of two mapping configs.",
+    )
+    sp.add_argument("a", help="First mapping config (a.json).")
+    sp.add_argument("b", help="Second mapping config (b.json).")
+    sp.add_argument("--json", action="store_true",
+                    help="Emit the diff as JSON instead of plain text.")
+    sp.set_defaults(func=cmd_diff)
 
     # generate
     sp = sub.add_parser("generate", help="LLM-draft a new mapping from a sample.")

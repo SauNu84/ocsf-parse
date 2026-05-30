@@ -342,9 +342,11 @@ workloads, the tool is intended as a *mapping development* environment;
 the JSON DSL config travels into a real distributed runtime
 (Spark / Flink / Vector) for production.
 
-- [ ] **Mapping comparison**: side-by-side diff of two mappings (useful
-      when one vendor has multiple variants). Not built — this is the
-      last open original-plan item.
+- [x] **Mapping comparison**: `ocsf-mapper diff <a.json> <b.json>`
+      reports metadata, parser, routing, and per-class changes — added
+      / removed targets and op-kind / op-body changes for shared
+      targets. ``--json`` for machine-readable output. Closes the
+      original Phase D list.
 
 ---
 
