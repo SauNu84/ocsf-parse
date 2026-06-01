@@ -351,6 +351,88 @@ the JSON DSL config travels into a real distributed runtime
 
 ---
 
+## 3a. v0.4+ roadmap (added 2026-06-01)
+
+The original Phase D scoreboard is done. These are the items the team
+agreed on next, organised by leverage. Each bucket is independent;
+work them in whatever order delivers the most value for the actual
+deployment.
+
+### Bucket B — more mappings (started in v0.3 post-tag)
+
+29 mappings cover 17 OCSF classes / 6 of 8 OCSF categories. Real-world
+SOC ingest needs more SaaS audit logs, the major generic vendor
+formats, and the two unmapped OCSF categories.
+
+- [ ] **`github_audit`** — GitHub Enterprise audit log → authentication
+      (logins) + api_activity (everything else)
+- [ ] **`gitlab_audit`** — GitLab audit_events → entity_management
+- [ ] **`slack_audit`** — Slack Enterprise Grid audit log →
+      authentication + entity_management
+- [ ] **`k8s_audit`** — Kubernetes API server audit log (the canonical
+      cluster control-plane log) → api_activity
+- [ ] **CEF generic parser** — most "$VENDOR sends syslog" sources
+      emit CEF; one mapping unlocks dozens of vendors. Likely needs
+      a new parser kind beyond `regex` — the extension-pair part is
+      not regex-friendly.
+- [ ] **LEEF generic parser** — IBM's variant. Similar mechanism to CEF.
+- [ ] **`windows_registry_activity`** — `registry_key_activity` lives
+      in the Windows extension of ocsf-schema. Needs the schema loader
+      to also walk `ocsf-schema/extensions/windows/` before this can lint.
+- [ ] **OCSF category 7 (remediation)** — pick a real SOAR / playbook
+      source (Splunk SOAR / Tines / Demisto). `remediation_activity`.
+- [ ] **OCSF category 8 (unmanned_systems)** — niche; only worth
+      doing if a real drone-telemetry workload comes through.
+
+### Bucket C — production engineering
+
+Things that matter once *other people* use the tool, not just the
+author. Each item is ~half a session.
+
+- [ ] **Prometheus `/metrics` endpoint** on the web app — mapping
+      count, lint pass rate, coverage drift over time, request
+      latencies for the apply/validate/lint routes.
+- [ ] **Audit log of mapping edits** — the Mapping tab's save endpoint
+      logs who / when / what changed to a local SQLite or NDJSON file.
+      Closes the compliance question "who changed cloudtrail.json last
+      Tuesday?"
+- [ ] **Replay tool** — `ocsf-mapper replay out.parquet --new-mapping`
+      re-runs a new mapping over historical OCSF Parquet output to
+      backfill newly-added fields, without re-ingesting raw logs.
+- [ ] **Provider test coverage** — Anthropic / OpenAI provider modules
+      sit at ~50% because we can't unit-test live API calls. Mock the
+      SDKs to bring coverage to ~90% and catch shape regressions.
+- [ ] **Mapping versioning** — add a `mapping_version` field; lint
+      warns when a mapping is edited without a version bump.
+
+### Phase E — distributed runtimes
+
+Per [`DESIGN_DISTRIBUTED.md`](./DESIGN_DISTRIBUTED.md). The Spark UDF
+reference (`examples/spark/`) is the first concrete adapter; the
+others are larger.
+
+- [ ] **Flink streaming adapter** — sub-second OCSF transform on a
+      live Kafka stream. Largest of the four runtime adapters; needs
+      a Python ↔ JVM bridge or a Java port of `apply()` (~500 lines,
+      the DSL is small).
+- [ ] **Vector / Fluentbit transpiler** — `ocsf-mapper transpile
+      <mapping>.json --target vector > out.vrl` — generates VRL or
+      Lua so the same mapping runs at host-shipper level without
+      Python. The hard bit: deterministic codegen so a `git diff` on
+      the generated VRL stays readable.
+- [ ] **Beam adapter** — same UDF pattern as Spark, in Apache Beam,
+      so the mapping runs on GCP Dataflow / Flink / Direct runner.
+
+### Distribution / discoverability (largely done in v0.3)
+
+- [x] PyPI publish workflow (`6c2d27a`)
+- [x] Docker image + GHCR workflow (`a76b42b`)
+- [x] Spark UDF reference (`75fe76c`)
+- [x] Landing page + GitHub Pages workflow (`75fe76c`)
+- [x] Release checklist (`c525d5e`)
+
+---
+
 ## 4. DSL reference (frozen surface)
 
 ```jsonc

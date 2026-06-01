@@ -278,6 +278,23 @@ tests/                   pytest suite (~225 tests, 90% coverage)
   - [x] WebSocket live-tail UI mode (Server-Sent Events from the Output
         tab stream new OCSF events as the source file appends)
   - [x] Mapping comparison (`ocsf-mapper diff <a.json> <b.json>`)
+- [x] **Distribution (v0.3)**: PyPI publish workflow, Docker image
+      pushed to GHCR, Spark UDF reference at `examples/spark/`,
+      landing page deployed via GitHub Pages.
+
+### v0.4+ roadmap
+
+Detail in [`PLAN.md`](./PLAN.md) §3a.
+
+- **Bucket B — more mappings**: GitHub / GitLab / Slack / Kubernetes
+  audit logs; CEF / LEEF generic parsers; Windows-extension classes
+  (registry, etc); OCSF categories 7 (remediation) and 8 (unmanned
+  systems).
+- **Bucket C — production engineering**: Prometheus `/metrics`, audit
+  log of mapping edits, replay tool for backfilling new fields,
+  provider test coverage, mapping versioning.
+- **Phase E — distributed runtimes**: Flink streaming adapter, Vector
+  / Fluentbit transpiler, Apache Beam adapter.
 
 See [`CHANGELOG.md`](./CHANGELOG.md) for the per-feature commit timeline
 and [`PLAN.md`](./PLAN.md) for the original architecture and design
