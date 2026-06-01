@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ocsf-parse — map any log into OCSF</title>
+  <meta name="description" content="Self-service tool to map arbitrary log sources into the Open Cybersecurity Schema Framework (OCSF). 29 reference mappings across 17 OCSF classes, declarative JSON DSL, web UI with LLM-assisted onboarding.">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <a class="brand" href="/">ocsf-parse</a>
+    <nav>
+      <a href="https://github.com/SauNu84/ocsf-parse">GitHub</a>
+      <a href="https://github.com/SauNu84/ocsf-parse/releases">Releases</a>
+      <a href="#install">Install</a>
+      <a href="#catalog">Catalog</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <h1>Map any log source into OCSF.</h1>
+    <p class="lead">
+      A small Python engine, JSON mapping configs per source, an
+      LLM-assisted onboarding wizard, and a web UI for editing
+      mappings — all CI-linted against the
+      <a href="https://github.com/ocsf/ocsf-schema">OCSF schema</a>.
+    </p>
+    <div class="stats">
+      <span class="stat"><strong id="stat-mappings">29</strong> mappings</span>
+      <span class="stat"><strong id="stat-classes">17</strong> OCSF classes</span>
+      <span class="stat"><strong id="stat-categories">6</strong> categories</span>
+      <span class="stat"><strong>11</strong> CLI subcommands</span>
+    </div>
+    <div class="cta">
+      <a class="btn btn-primary" href="https://github.com/SauNu84/ocsf-parse">GitHub repo</a>
+      <a class="btn" href="#install">Install</a>
+    </div>
+  </div>
+</section>
+
+<section id="why" class="band">
+  <div class="wrap">
+    <h2>What it does</h2>
+    <div class="cards">
+      <div class="card">
+        <h3>One engine, many sources</h3>
+        <p>Declarative JSON DSL with 11 op kinds. The same engine reads
+          nginx access logs, CloudTrail JSON, Sysmon events, and Suricata
+          alerts. Add a new source by writing a config file — no code.</p>
+      </div>
+      <div class="card">
+        <h3>LLM-assisted onboarding</h3>
+        <p>Drop a sample log into the <code>/new</code> wizard. The
+          generator suggests OCSF classes, drafts a full mapping JSON,
+          and the linter gates the save. Anthropic / OpenAI / offline
+          fixture providers — bring your own key.</p>
+      </div>
+      <div class="card">
+        <h3>CI-linted</h3>
+        <p>Every mapping ships with a pinned sample. The linter
+          re-runs every mapping × sample on every PR and refuses to
+          merge if any event no longer conforms to OCSF.</p>
+      </div>
+      <div class="card">
+        <h3>Built for scale</h3>
+        <p>Multiprocess <code>apply --workers N</code>, streaming
+          partitioned Parquet for AWS Security Lake, optional orjson
+          fast-path. ~30-50× over single-thread for 10 TB-class
+          workloads. <a href="https://github.com/SauNu84/ocsf-parse/blob/main/BENCHMARKS.md">See benchmarks</a>.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="install" class="band">
+  <div class="wrap">
+    <h2>Install</h2>
+    <div class="install-grid">
+      <div class="install-block">
+        <h3>Docker</h3>
+        <pre><code>docker run --rm -p 8000:8000 \
+  ghcr.io/saunu84/ocsf-mapper:latest</code></pre>
+        <p class="muted">→ web UI on <code>http://127.0.0.1:8000</code></p>
+      </div>
+      <div class="install-block">
+        <h3>PyPI</h3>
+        <pre><code>pip install 'ocsf-mapper[web,parquet,fast]'
+ocsf-mapper serve</code></pre>
+        <p class="muted">Optional extras: <code>fast</code> (orjson),
+          <code>parquet</code> (pyarrow), <code>web</code> (FastAPI).</p>
+      </div>
+      <div class="install-block">
+        <h3>Source</h3>
+        <pre><code>git clone --recurse-submodules \
+  https://github.com/SauNu84/ocsf-parse
+cd ocsf-parse
+pip install -e '.[dev,web,parquet,fast]'</code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="catalog" class="band">
+  <div class="wrap">
+    <h2>Source catalog</h2>
+    <p class="lead-small">29 reference mappings across 6 OCSF categories.
+      Loaded from
+      <a href="https://github.com/SauNu84/ocsf-parse/blob/main/catalog.json"><code>catalog.json</code></a>
+      at page load.</p>
+    <div class="catalog-filter">
+      <label>Priority:
+        <select id="filter-priority">
+          <option value="">all</option>
+          <option value="critical">critical</option>
+          <option value="high">high</option>
+          <option value="medium">medium</option>
+          <option value="low">low</option>
+        </select>
+      </label>
+      <input type="search" id="filter-text" placeholder="filter by name / vendor / class">
+    </div>
+    <table id="catalog-table">
+      <thead>
+        <tr>
+          <th>Source</th>
+          <th>Vendor</th>
+          <th>OCSF Category</th>
+          <th>OCSF Class</th>
+          <th>Priority</th>
+        </tr>
+      </thead>
+      <tbody><!-- populated by app.js --></tbody>
+    </table>
+    <p class="muted" id="catalog-empty" hidden>No sources match this filter.</p>
+  </div>
+</section>
+
+<section id="cli" class="band">
+  <div class="wrap">
+    <h2>CLI surface</h2>
+    <pre class="block"><code>ocsf-mapper apply       mappings/cloudtrail.json samples/cloudtrail.jsonl out.jsonl
+ocsf-mapper apply       … --workers 8 --sink security-lake   # 10 TB-class
+ocsf-mapper apply       … --redact email ipv4                # PII scrub
+ocsf-mapper validate    out.jsonl authentication
+ocsf-mapper list                                              # mapping table
+ocsf-mapper catalog                                           # master data
+ocsf-mapper lint                                              # CI gate
+ocsf-mapper schema-diff                                       # break detector
+ocsf-mapper benchmark   mappings/X.json samples/X.ext         # throughput
+ocsf-mapper diff        a.json b.json                          # mapping diff
+ocsf-mapper generate    my_src samples/my.jsonl               # LLM draft
+ocsf-mapper tail        mappings/X.json /var/log/X.log         # live -f
+ocsf-mapper serve                                              # web UI</code></pre>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>
+      <a href="https://github.com/SauNu84/ocsf-parse">Source on GitHub</a> ·
+      <a href="https://github.com/SauNu84/ocsf-parse/blob/main/CHANGELOG.md">Changelog</a> ·
+      <a href="https://github.com/SauNu84/ocsf-parse/blob/main/PLAN.md">Architecture</a> ·
+      <a href="https://github.com/SauNu84/ocsf-parse/blob/main/DESIGN_DISTRIBUTED.md">At scale</a>
+    </p>
+    <p class="muted">MIT licensed. Maps to the
+      <a href="https://github.com/ocsf/ocsf-schema">OCSF schema</a>
+      (vendored as a git submodule, version 1.9.0-dev).</p>
+  </div>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
