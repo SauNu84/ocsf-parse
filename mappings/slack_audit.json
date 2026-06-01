@@ -1,0 +1,78 @@
+{
+  "source_name": "slack_audit",
+  "display_name": "Slack Enterprise Grid Audit",
+  "vendor": "Slack",
+  "priority": "high",
+  "description": "Slack Enterprise Grid audit log. Routes user_login* to authentication; channel / workspace / user lifecycle events to entity_management.",
+  "parser": "json",
+  "routing": {
+    "field": "$.action",
+    "rules": [
+      { "matches": ["user_login", "user_login_failed", "user_logout", "user_session_invalidated"], "class": "authentication" },
+      { "default": true, "class": "entity_management" }
+    ]
+  },
+  "classes": {
+    "authentication": {
+      "mapping": {
+        "metadata.version":             { "const": "1.9.0-dev" },
+        "metadata.product.name":        { "const": "Slack Enterprise Grid" },
+        "metadata.product.vendor_name": { "const": "Slack" },
+        "metadata.uid":                 { "path": "$.id" },
+        "metadata.logged_time":         { "time": "$.date_create", "format": "epoch_s" },
+        "time":                         { "time": "$.date_create", "format": "epoch_s" },
+        "category_uid":                 { "const": 3 },
+        "category_name":                { "const": "Identity & Access Management" },
+        "class_uid":                    { "const": 3002 },
+        "class_name":                   { "const": "Authentication" },
+        "activity_id":                  { "lookup": "$.action", "table": {"user_login": 1, "user_login_failed": 1, "user_logout": 2, "user_session_invalidated": 2}, "default": 0 },
+        "activity_name":                { "lookup": "$.action", "table": {"user_login": "Logon", "user_login_failed": "Logon", "user_logout": "Logoff", "user_session_invalidated": "Logoff"}, "default": "Unknown" },
+        "type_uid":                     { "expr": "class_uid * 100 + activity_id" },
+        "severity_id":                  { "lookup": "$.action", "table": {"user_login_failed": 3, "user_session_invalidated": 3}, "default": 1 },
+        "severity":                     { "lookup": "$.action", "table": {"user_login_failed": "Medium", "user_session_invalidated": "Medium"}, "default": "Informational" },
+        "status_id":                    { "lookup": "$.action", "table": {"user_login": 1, "user_logout": 1, "user_login_failed": 2, "user_session_invalidated": 2}, "default": 0 },
+        "status":                       { "lookup": "$.action", "table": {"user_login": "Success", "user_logout": "Success", "user_login_failed": "Failure", "user_session_invalidated": "Failure"}, "default": "Unknown" },
+        "user.name":                    { "path": "$.actor.user.name" },
+        "user.uid":                     { "path": "$.actor.user.id" },
+        "user.email_addr":              { "path": "$.actor.user.email" },
+        "actor.user.name":              { "path": "$.actor.user.name" },
+        "actor.user.uid":               { "path": "$.actor.user.id" },
+        "src_endpoint.ip":              { "path": "$.context.ip_address" },
+        "src_endpoint.user_agent":      { "path": "$.context.ua" },
+        "service.name":                 { "const": "Slack" },
+        "auth_protocol":                { "const": "OAuth2" },
+        "is_remote":                    { "const": true },
+        "raw_data":                     { "raw": true }
+      }
+    },
+    "entity_management": {
+      "mapping": {
+        "metadata.version":             { "const": "1.9.0-dev" },
+        "metadata.product.name":        { "const": "Slack Enterprise Grid" },
+        "metadata.product.vendor_name": { "const": "Slack" },
+        "metadata.uid":                 { "path": "$.id" },
+        "metadata.logged_time":         { "time": "$.date_create", "format": "epoch_s" },
+        "time":                         { "time": "$.date_create", "format": "epoch_s" },
+        "category_uid":                 { "const": 3 },
+        "category_name":                { "const": "Identity & Access Management" },
+        "class_uid":                    { "const": 3004 },
+        "class_name":                   { "const": "Entity Management" },
+        "activity_id":                  { "lookup": "$.action", "table": {"workspace_created": 1, "user_created": 1, "channel_created": 1, "workspace_deleted": 4, "user_deactivated": 4, "channel_archived": 4}, "default": 99, "prefix_match": false },
+        "activity_name":                { "lookup": "$.action", "table": {"workspace_created": "Create", "user_created": "Create", "channel_created": "Create", "workspace_deleted": "Delete", "user_deactivated": "Delete", "channel_archived": "Delete"}, "default": "Other", "prefix_match": false },
+        "type_uid":                     { "expr": "class_uid * 100 + activity_id" },
+        "severity_id":                  { "const": 1 },
+        "severity":                     { "const": "Informational" },
+        "status_id":                    { "const": 1 },
+        "status":                       { "const": "Success" },
+        "actor.user.name":              { "path": "$.actor.user.name" },
+        "actor.user.uid":               { "path": "$.actor.user.id" },
+        "src_endpoint.ip":              { "path": "$.context.ip_address" },
+        "entity.name":                  { "path": "$.entity.workspace.name" },
+        "entity.uid":                   { "path": "$.entity.workspace.id" },
+        "entity.type":                  { "path": "$.entity.type" },
+        "message":                      { "path": "$.action" },
+        "raw_data":                     { "raw": true }
+      }
+    }
+  }
+}

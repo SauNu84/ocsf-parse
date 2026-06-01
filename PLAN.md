@@ -5,7 +5,7 @@
 > configs per source, LLM-assisted onboarding, validating UI.
 
 > **Implementation status:** Phase A, B, C complete; Phase D in progress.
-> 29 reference mappings live, 176 tests passing on Python 3.9 / 3.11 / 3.12.
+> 33 reference mappings live, ~245 tests passing on Python 3.9 / 3.11 / 3.12.
 > See [`CHANGELOG.md`](./CHANGELOG.md) for the commit timeline. Status
 > tags on each phase below; original design rationale preserved verbatim.
 
@@ -360,16 +360,16 @@ deployment.
 
 ### Bucket B — more mappings (started in v0.3 post-tag)
 
-29 mappings cover 17 OCSF classes / 6 of 8 OCSF categories. Real-world
+33 mappings cover 17 OCSF classes / 6 of 8 OCSF categories. Real-world
 SOC ingest needs more SaaS audit logs, the major generic vendor
 formats, and the two unmapped OCSF categories.
 
-- [ ] **`github_audit`** — GitHub Enterprise audit log → authentication
+- [x] **`github_audit`** — GitHub Enterprise audit log → authentication
       (logins) + api_activity (everything else)
-- [ ] **`gitlab_audit`** — GitLab audit_events → entity_management
-- [ ] **`slack_audit`** — Slack Enterprise Grid audit log →
+- [x] **`gitlab_audit`** — GitLab audit_events → entity_management
+- [x] **`slack_audit`** — Slack Enterprise Grid audit log →
       authentication + entity_management
-- [ ] **`k8s_audit`** — Kubernetes API server audit log (the canonical
+- [x] **`k8s_audit`** — Kubernetes API server audit log (the canonical
       cluster control-plane log) → api_activity
 - [ ] **CEF generic parser** — most "$VENDOR sends syslog" sources
       emit CEF; one mapping unlocks dozens of vendors. Likely needs

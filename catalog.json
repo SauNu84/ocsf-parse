@@ -240,6 +240,38 @@
       "ocsf": { "category_uid": 1, "category_name": "System Activity", "class_uid": 1003, "class_name": "Kernel Activity" },
       "priority": "high",
       "description": "Falco runtime detections for kernel module load/unload events."
+    },
+    {
+      "source": "github_audit",
+      "display_name": "GitHub Enterprise Audit",
+      "vendor": "GitHub",
+      "ocsf": { "category_uid": 6, "category_name": "Application Activity", "class_uid": 6003, "class_name": "API Activity" },
+      "priority": "high",
+      "description": "GitHub Enterprise audit log. Logins route to authentication (3002); repo/org/team actions to api_activity (6003)."
+    },
+    {
+      "source": "gitlab_audit",
+      "display_name": "GitLab Audit Events",
+      "vendor": "GitLab",
+      "ocsf": { "category_uid": 3, "category_name": "Identity & Access Management", "class_uid": 3004, "class_name": "Entity Management" },
+      "priority": "high",
+      "description": "GitLab audit_events API output for project / group / user lifecycle changes."
+    },
+    {
+      "source": "slack_audit",
+      "display_name": "Slack Enterprise Grid Audit",
+      "vendor": "Slack",
+      "ocsf": { "category_uid": 3, "category_name": "Identity & Access Management", "class_uid": 3002, "class_name": "Authentication" },
+      "priority": "high",
+      "description": "Slack Enterprise Grid audit log. Login events route to authentication (3002); workspace / channel / user lifecycle to entity_management (3004)."
+    },
+    {
+      "source": "k8s_audit",
+      "display_name": "Kubernetes API Server Audit",
+      "vendor": "Kubernetes",
+      "ocsf": { "category_uid": 6, "category_name": "Application Activity", "class_uid": 6003, "class_name": "API Activity" },
+      "priority": "high",
+      "description": "Kubernetes API server audit log (audit.k8s.io/v1 Event). Verbs map to api_activity.activity_id."
     }
   ]
 }

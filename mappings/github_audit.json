@@ -1,0 +1,81 @@
+{
+  "source_name": "github_audit",
+  "display_name": "GitHub Enterprise Audit",
+  "vendor": "GitHub",
+  "priority": "high",
+  "description": "GitHub Enterprise audit log (JSON). Routes login events to authentication; everything else (repo / org / team / billing actions) to api_activity.",
+  "parser": "json",
+  "routing": {
+    "field": "$.action",
+    "rules": [
+      { "matches": ["user.login", "user.failed_login", "oauth_access.create"], "class": "authentication" },
+      { "default": true, "class": "api_activity" }
+    ]
+  },
+  "classes": {
+    "authentication": {
+      "mapping": {
+        "metadata.version":             { "const": "1.9.0-dev" },
+        "metadata.product.name":        { "const": "GitHub Enterprise" },
+        "metadata.product.vendor_name": { "const": "GitHub" },
+        "metadata.uid":                 { "path": "$._document_id" },
+        "metadata.logged_time":         { "time": "$.@timestamp", "format": "epoch_ms" },
+        "time":                         { "time": "$.@timestamp", "format": "epoch_ms" },
+        "category_uid":                 { "const": 3 },
+        "category_name":                { "const": "Identity & Access Management" },
+        "class_uid":                    { "const": 3002 },
+        "class_name":                   { "const": "Authentication" },
+        "activity_id":                  { "const": 1 },
+        "activity_name":                { "const": "Logon" },
+        "type_uid":                     { "expr": "class_uid * 100 + activity_id" },
+        "severity_id":                  { "lookup": "$.action", "table": {"user.failed_login": 3}, "default": 1 },
+        "severity":                     { "lookup": "$.action", "table": {"user.failed_login": "Medium"}, "default": "Informational" },
+        "status_id":                    { "lookup": "$.action", "table": {"user.login": 1, "oauth_access.create": 1, "user.failed_login": 2}, "default": 0 },
+        "status":                       { "lookup": "$.action", "table": {"user.login": "Success", "oauth_access.create": "Success", "user.failed_login": "Failure"}, "default": "Unknown" },
+        "user.name":                    { "path": "$.actor" },
+        "user.uid":                     { "path": "$.actor_id" },
+        "actor.user.name":              { "path": "$.actor" },
+        "actor.user.uid":               { "path": "$.actor_id" },
+        "src_endpoint.ip":              { "path": "$.actor_ip" },
+        "service.name":                 { "const": "GitHub" },
+        "auth_protocol":                { "const": "OAuth2" },
+        "is_remote":                    { "const": true },
+        "raw_data":                     { "raw": true }
+      }
+    },
+    "api_activity": {
+      "mapping": {
+        "metadata.version":             { "const": "1.9.0-dev" },
+        "metadata.product.name":        { "const": "GitHub Enterprise" },
+        "metadata.product.vendor_name": { "const": "GitHub" },
+        "metadata.uid":                 { "path": "$._document_id" },
+        "metadata.logged_time":         { "time": "$.@timestamp", "format": "epoch_ms" },
+        "time":                         { "time": "$.@timestamp", "format": "epoch_ms" },
+        "category_uid":                 { "const": 6 },
+        "category_name":                { "const": "Application Activity" },
+        "class_uid":                    { "const": 6003 },
+        "class_name":                   { "const": "API Activity" },
+        "activity_id":                  { "lookup": "$.action", "table": {"create": 1, "destroy": 4, "remove": 4, "add": 1, "update": 3, "edit": 3, "transfer": 3, "rename": 3}, "default": 99, "prefix_match": false },
+        "activity_name":                { "lookup": "$.action", "table": {"create": "Create", "destroy": "Delete", "remove": "Delete", "add": "Create", "update": "Update", "edit": "Update"}, "default": "Other", "prefix_match": false },
+        "type_uid":                     { "expr": "class_uid * 100 + activity_id" },
+        "severity_id":                  { "const": 1 },
+        "severity":                     { "const": "Informational" },
+        "status_id":                    { "const": 1 },
+        "status":                       { "const": "Success" },
+        "actor.user.name":              { "path": "$.actor" },
+        "actor.user.uid":               { "path": "$.actor_id" },
+        "src_endpoint.ip":              { "path": "$.actor_ip" },
+        "api.operation":                { "path": "$.action" },
+        "api.service.name":             { "const": "GitHub" },
+        "api.request.data":             { "path": "$.data" },
+        "resources":                    { "for_each": "$.repos", "as": "r", "map": {
+            "name":     { "path": "$.r" },
+            "type":     { "const": "github.repo" }
+          }
+        },
+        "cloud.provider":               { "const": "GitHub" },
+        "raw_data":                     { "raw": true }
+      }
+    }
+  }
+}

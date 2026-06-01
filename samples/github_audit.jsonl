@@ -1,0 +1,6 @@
+{"_document_id":"abc123","@timestamp":1779891791000,"action":"user.login","actor":"alice","actor_id":"42","actor_ip":"203.0.113.42","user":"alice","user_id":"42"}
+{"_document_id":"abc124","@timestamp":1779891811000,"action":"user.failed_login","actor":"bob","actor_id":"43","actor_ip":"198.51.100.7","user":"bob","user_id":"43"}
+{"_document_id":"abc125","@timestamp":1779891831000,"action":"repo.create","actor":"alice","actor_id":"42","actor_ip":"203.0.113.42","repo":"acme/new-service","data":{"name":"new-service","visibility":"private"},"repos":["acme/new-service"]}
+{"_document_id":"abc126","@timestamp":1779891851000,"action":"org.add_member","actor":"alice","actor_id":"42","actor_ip":"203.0.113.42","user":"carol","org":"acme"}
+{"_document_id":"abc127","@timestamp":1779891871000,"action":"repo.destroy","actor":"dave","actor_id":"44","actor_ip":"10.0.0.5","repo":"acme/legacy","repos":["acme/legacy"]}
+{"_document_id":"abc128","@timestamp":1779891891000,"action":"oauth_access.create","actor":"eve","actor_id":"45","actor_ip":"192.168.1.10","application":"vscode-github"}
