@@ -17,12 +17,14 @@ against the vendored OCSF schema.
 
 | OCSF category | Classes covered | Sources |
 |---|---|---|
-| System Activity | `file_activity`, `kernel_activity`, `process_activity`, `scheduled_job_activity` | auditd_file, dlp_events, falco_kernel, sysmon_process, cron |
-| Findings | `security_finding`, `detection_finding`, `vulnerability_finding` | wazuh, splunk_es_alert, crowdstrike_falcon, suricata_alert, qualys_scan, ueba_alert |
-| IAM | `authentication`, `entity_management` | okta, sshd, cloudtrail (ConsoleLogin), windows_event_log, azure_ad_signin |
+| System Activity | `file_activity`, `kernel_activity`, `process_activity`, `scheduled_job_activity`, `registry_key_activity` | auditd_file, dlp_events, falco_kernel, sysmon_process, cron, windows_registry |
+| Findings | `security_finding`, `detection_finding`, `vulnerability_finding` | wazuh, splunk_es_alert, crowdstrike_falcon, suricata_alert, qualys_scan, ueba_alert, cef_generic, leef_generic |
+| IAM | `authentication`, `entity_management` | okta, sshd, cloudtrail (ConsoleLogin), windows_event_log, azure_ad_signin, slack_audit, gitlab_audit |
 | Network | `network_activity`, `http_activity`, `dns_activity`, `email_activity` | nginx, apache, cloudflare, palo_alto, vpc_flow_logs, waf_logs, zeek_dns, m365_email, google_workspace |
 | Discovery | `inventory_info`, `config_state`, `device_config_state_change` | osquery_inventory, aws_config, jamf_inventory, prisma_cloud |
-| Application Activity | `api_activity` | cloudtrail (non-login) |
+| Application Activity | `api_activity` | cloudtrail (non-login), github_audit, k8s_audit |
+| Remediation | `remediation_activity` | soar_remediation |
+| Unmanned Systems | `drone_flights_activity` | drone_telemetry |
 
 Browse the master-data view with `ocsf-mapper catalog` or
 [`catalog.json`](./catalog.json).
