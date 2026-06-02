@@ -4,45 +4,199 @@
   "vendor": "Kubernetes",
   "priority": "high",
   "description": "Kubernetes API server audit log (audit.k8s.io/v1 Event). The cluster control plane is fundamentally a series of API calls, so verbs (create/get/list/update/delete) map to api_activity.activity_id directly.",
+  "mapping_version": "1.0.0",
   "parser": "json",
   "routing": {
     "field": "$.verb",
-    "rules": [{ "default": true, "class": "api_activity" }]
+    "rules": [
+      {
+        "default": true,
+        "class": "api_activity"
+      }
+    ]
   },
   "classes": {
     "api_activity": {
       "mapping": {
-        "metadata.version":             { "const": "1.9.0-dev" },
-        "metadata.product.name":        { "const": "Kubernetes API Server" },
-        "metadata.product.vendor_name": { "const": "Kubernetes" },
-        "metadata.uid":                 { "path": "$.auditID" },
-        "metadata.logged_time":         { "time": "$.requestReceivedTimestamp", "format": "iso8601" },
-        "time":                         { "time": "$.requestReceivedTimestamp", "format": "iso8601" },
-        "category_uid":                 { "const": 6 },
-        "category_name":                { "const": "Application Activity" },
-        "class_uid":                    { "const": 6003 },
-        "class_name":                   { "const": "API Activity" },
-        "activity_id":                  { "lookup": "$.verb", "table": {"create": 1, "get": 2, "list": 2, "watch": 2, "update": 3, "patch": 3, "delete": 4, "deletecollection": 4}, "default": 99 },
-        "activity_name":                { "lookup": "$.verb", "table": {"create": "Create", "get": "Read", "list": "Read", "watch": "Read", "update": "Update", "patch": "Update", "delete": "Delete", "deletecollection": "Delete"}, "default": "Other" },
-        "type_uid":                     { "expr": "class_uid * 100 + activity_id" },
-        "severity_id":                  { "range": "$.responseStatus.code", "ranges": [[100, 399, 1], [400, 499, 3], [500, 599, 4]], "default": 1 },
-        "severity":                     { "range": "$.responseStatus.code", "ranges": [[100, 399, "Informational"], [400, 499, "Medium"], [500, 599, "High"]], "default": "Informational" },
-        "status_id":                    { "range": "$.responseStatus.code", "ranges": [[100, 399, 1], [400, 599, 2]], "default": 0 },
-        "status":                       { "range": "$.responseStatus.code", "ranges": [[100, 399, "Success"], [400, 599, "Failure"]], "default": "Unknown" },
-        "status_code":                  { "path": "$.responseStatus.code" },
-        "status_detail":                { "path": "$.responseStatus.reason" },
-        "actor.user.name":              { "path": "$.user.username" },
-        "actor.user.uid":               { "path": "$.user.uid" },
-        "actor.user.groups":            { "path": "$.user.groups" },
-        "src_endpoint.ip":              { "path": "$.sourceIPs.0" },
-        "api.operation":                { "path": "$.verb" },
-        "api.service.name":             { "const": "kube-apiserver" },
-        "api.request.uid":              { "path": "$.requestObject.metadata.uid" },
-        "api.request.data":             { "path": "$.requestObject" },
-        "api.response.data":            { "path": "$.responseObject" },
-        "api.response.code":            { "int": "$.responseStatus.code" },
-        "cloud.provider":               { "const": "Kubernetes" },
-        "raw_data":                     { "raw": true }
+        "metadata.version": {
+          "const": "1.9.0-dev"
+        },
+        "metadata.product.name": {
+          "const": "Kubernetes API Server"
+        },
+        "metadata.product.vendor_name": {
+          "const": "Kubernetes"
+        },
+        "metadata.uid": {
+          "path": "$.auditID"
+        },
+        "metadata.logged_time": {
+          "time": "$.requestReceivedTimestamp",
+          "format": "iso8601"
+        },
+        "time": {
+          "time": "$.requestReceivedTimestamp",
+          "format": "iso8601"
+        },
+        "category_uid": {
+          "const": 6
+        },
+        "category_name": {
+          "const": "Application Activity"
+        },
+        "class_uid": {
+          "const": 6003
+        },
+        "class_name": {
+          "const": "API Activity"
+        },
+        "activity_id": {
+          "lookup": "$.verb",
+          "table": {
+            "create": 1,
+            "get": 2,
+            "list": 2,
+            "watch": 2,
+            "update": 3,
+            "patch": 3,
+            "delete": 4,
+            "deletecollection": 4
+          },
+          "default": 99
+        },
+        "activity_name": {
+          "lookup": "$.verb",
+          "table": {
+            "create": "Create",
+            "get": "Read",
+            "list": "Read",
+            "watch": "Read",
+            "update": "Update",
+            "patch": "Update",
+            "delete": "Delete",
+            "deletecollection": "Delete"
+          },
+          "default": "Other"
+        },
+        "type_uid": {
+          "expr": "class_uid * 100 + activity_id"
+        },
+        "severity_id": {
+          "range": "$.responseStatus.code",
+          "ranges": [
+            [
+              100,
+              399,
+              1
+            ],
+            [
+              400,
+              499,
+              3
+            ],
+            [
+              500,
+              599,
+              4
+            ]
+          ],
+          "default": 1
+        },
+        "severity": {
+          "range": "$.responseStatus.code",
+          "ranges": [
+            [
+              100,
+              399,
+              "Informational"
+            ],
+            [
+              400,
+              499,
+              "Medium"
+            ],
+            [
+              500,
+              599,
+              "High"
+            ]
+          ],
+          "default": "Informational"
+        },
+        "status_id": {
+          "range": "$.responseStatus.code",
+          "ranges": [
+            [
+              100,
+              399,
+              1
+            ],
+            [
+              400,
+              599,
+              2
+            ]
+          ],
+          "default": 0
+        },
+        "status": {
+          "range": "$.responseStatus.code",
+          "ranges": [
+            [
+              100,
+              399,
+              "Success"
+            ],
+            [
+              400,
+              599,
+              "Failure"
+            ]
+          ],
+          "default": "Unknown"
+        },
+        "status_code": {
+          "path": "$.responseStatus.code"
+        },
+        "status_detail": {
+          "path": "$.responseStatus.reason"
+        },
+        "actor.user.name": {
+          "path": "$.user.username"
+        },
+        "actor.user.uid": {
+          "path": "$.user.uid"
+        },
+        "actor.user.groups": {
+          "path": "$.user.groups"
+        },
+        "src_endpoint.ip": {
+          "path": "$.sourceIPs.0"
+        },
+        "api.operation": {
+          "path": "$.verb"
+        },
+        "api.service.name": {
+          "const": "kube-apiserver"
+        },
+        "api.request.uid": {
+          "path": "$.requestObject.metadata.uid"
+        },
+        "api.request.data": {
+          "path": "$.requestObject"
+        },
+        "api.response.data": {
+          "path": "$.responseObject"
+        },
+        "api.response.code": {
+          "int": "$.responseStatus.code"
+        },
+        "cloud.provider": {
+          "const": "Kubernetes"
+        },
+        "raw_data": {
+          "raw": true
+        }
       }
     }
   }

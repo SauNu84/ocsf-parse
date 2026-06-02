@@ -4,6 +4,7 @@
   "vendor": "OpenSSH",
   "priority": "high",
   "description": "Syslog lines from sshd: Accepted / Failed authentication.",
+  "mapping_version": "1.0.0",
   "parser": {
     "regex": "^(?P<ts>\\w{3}\\s+\\d+\\s+\\d{2}:\\d{2}:\\d{2}) (?P<host>\\S+) sshd\\[\\d+\\]: (?P<outcome>Accepted|Failed) (?P<auth_method>\\w+) for (?P<user>\\S+) from (?P<src_ip>\\S+) port (?P<src_port>\\d+).*$",
     "groups": [

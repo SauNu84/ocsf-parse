@@ -4,6 +4,7 @@
   "vendor": "Sysdig",
   "priority": "high",
   "description": "Falco runtime detections for kernel module load/unload events.",
+  "mapping_version": "1.0.0",
   "parser": "json",
   "routing": {
     "field": "$.rule",

@@ -4,6 +4,7 @@
   "vendor": "AWS",
   "priority": "critical",
   "description": "AWS management-plane API calls. Routes ConsoleLogin to Authentication (3002).",
+  "mapping_version": "1.0.0",
   "parser": "json",
   "routing": {
     "field": "$.eventName",

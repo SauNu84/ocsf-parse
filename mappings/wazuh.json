@@ -4,6 +4,7 @@
   "vendor": "Wazuh",
   "priority": "high",
   "description": "Wazuh agent alerts with rule.id, rule.level, agent context.",
+  "mapping_version": "1.0.0",
   "parser": "json",
   "routing": {
     "field": "$.rule.id",

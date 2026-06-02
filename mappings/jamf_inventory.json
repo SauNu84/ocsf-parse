@@ -4,6 +4,7 @@
   "vendor": "Jamf",
   "priority": "medium",
   "description": "Jamf MDM device inventory change events.",
+  "mapping_version": "1.0.0",
   "parser": "json",
   "routing": {
     "field": "$.event_type",

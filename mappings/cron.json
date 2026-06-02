@@ -4,6 +4,7 @@
   "vendor": "GNU",
   "priority": "low",
   "description": "Cron job lifecycle events: created, started, deleted.",
+  "mapping_version": "1.0.0",
   "parser": "json",
   "routing": {
     "field": "$.event",

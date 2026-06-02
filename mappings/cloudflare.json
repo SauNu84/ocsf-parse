@@ -4,6 +4,7 @@
   "vendor": "Cloudflare",
   "priority": "high",
   "description": "Cloudflare HTTP request logs from Logpush, with WAF action.",
+  "mapping_version": "1.0.0",
   "parser": "json",
   "routing": {
     "field": "$.ClientRequestMethod",

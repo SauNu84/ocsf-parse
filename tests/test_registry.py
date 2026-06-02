@@ -31,6 +31,35 @@ def test_list_mappings_surfaces_metadata_fields(mappings_dir):
     assert "AWS management-plane" in ct["description"]
 
 
+def test_list_mappings_surfaces_mapping_version(mappings_dir):
+    """Every reference mapping carries a mapping_version (Bucket C #3)."""
+    out = list_mappings(mappings_dir)
+    for m in out:
+        assert m["mapping_version"] == "1.0.0", (
+            f"{m['name']!r}: version was {m['mapping_version']!r}, expected 1.0.0"
+        )
+
+
+def test_list_mappings_mapping_version_defaults_when_absent(tmp_path):
+    import json
+    mapdir = tmp_path / "mappings"
+    mapdir.mkdir()
+    (mapdir / "no_version.json").write_text(json.dumps({"parser": "json", "classes": {}}))
+    out = list_mappings(mapdir)
+    assert out[0]["mapping_version"] == "0.0.0"
+
+
+def test_list_mappings_parser_kind_cef_and_leef(tmp_path):
+    import json
+    mapdir = tmp_path / "mappings"
+    mapdir.mkdir()
+    (mapdir / "a.json").write_text(json.dumps({"parser": "cef",  "classes": {}}))
+    (mapdir / "b.json").write_text(json.dumps({"parser": "leef", "classes": {}}))
+    out = {m["name"]: m for m in list_mappings(mapdir)}
+    assert out["a"]["parser_kind"] == "cef"
+    assert out["b"]["parser_kind"] == "leef"
+
+
 def test_list_mappings_falls_back_when_metadata_missing(tmp_path):
     import json
     mapdir = tmp_path / "mappings"

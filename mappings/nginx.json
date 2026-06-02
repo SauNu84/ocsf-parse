@@ -4,6 +4,7 @@
   "vendor": "nginx",
   "priority": "high",
   "description": "nginx combined log format (regex-parsed).",
+  "mapping_version": "1.0.0",
   "parser": {
     "regex": "^(?P<remote_addr>\\S+) - (?P<remote_user>\\S+) \\[(?P<time_local>[^\\]]+)\\] \"(?P<method>\\S+) (?P<uri>\\S+) (?P<proto>[^\"]+)\" (?P<status>\\d{3}) (?P<bytes_sent>\\d+) \"(?P<referer>[^\"]*)\" \"(?P<user_agent>[^\"]*)\"$",
     "groups": [

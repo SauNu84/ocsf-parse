@@ -4,39 +4,134 @@
   "vendor": "Various",
   "priority": "medium",
   "description": "Data-loss-prevention file movement events with policy + action_taken.",
+  "mapping_version": "1.0.0",
   "parser": "json",
   "routing": {
     "field": "$.action",
-    "rules": [{ "default": true, "class": "file_activity" }]
+    "rules": [
+      {
+        "default": true,
+        "class": "file_activity"
+      }
+    ]
   },
   "classes": {
     "file_activity": {
       "mapping": {
-        "metadata.version":             { "const": "1.9.0-dev" },
-        "metadata.product.name":        { "const": "DLP" },
-        "metadata.product.vendor_name": { "const": "Symantec" },
-        "metadata.logged_time":         { "time": "$.event_time", "format": "iso8601" },
-        "time":                         { "time": "$.event_time", "format": "iso8601" },
-        "category_uid":                 { "const": 1 },
-        "category_name":                { "const": "System Activity" },
-        "class_uid":                    { "const": 1001 },
-        "class_name":                   { "const": "File System Activity" },
-        "activity_id":                  { "lookup": "$.action", "table": {"copy": 1, "move": 5, "upload": 3, "delete": 4, "read": 2}, "default": 0 },
-        "activity_name":                { "lookup": "$.action", "table": {"copy": "Create", "move": "Rename", "upload": "Update", "delete": "Delete", "read": "Read"}, "default": "Unknown" },
-        "type_uid":                     { "expr": "class_uid * 100 + activity_id" },
-        "severity_id":                  { "lookup": "$.action_taken", "table": {"Allowed": 1, "Audited": 1, "Quarantined": 3, "Blocked": 4}, "default": 1 },
-        "severity":                     { "lookup": "$.action_taken", "table": {"Allowed": "Informational", "Audited": "Informational", "Quarantined": "Medium", "Blocked": "High"}, "default": "Informational" },
-        "disposition":                  { "path": "$.action_taken" },
-        "disposition_id":               { "lookup": "$.action_taken", "table": {"Allowed": 1, "Audited": 1, "Quarantined": 99, "Blocked": 2}, "default": 0 },
-        "device.hostname":              { "path": "$.host" },
-        "device.type_id":               { "const": 5 },
-        "actor.user.name":              { "path": "$.user" },
-        "file.path":                    { "path": "$.src_path" },
-        "file.name":                    { "path": "$.src_path" },
-        "file.type_id":                 { "const": 1 },
-        "file.type":                    { "const": "Regular File" },
-        "message":                      { "path": "$.policy" },
-        "raw_data":                     { "raw": true }
+        "metadata.version": {
+          "const": "1.9.0-dev"
+        },
+        "metadata.product.name": {
+          "const": "DLP"
+        },
+        "metadata.product.vendor_name": {
+          "const": "Symantec"
+        },
+        "metadata.logged_time": {
+          "time": "$.event_time",
+          "format": "iso8601"
+        },
+        "time": {
+          "time": "$.event_time",
+          "format": "iso8601"
+        },
+        "category_uid": {
+          "const": 1
+        },
+        "category_name": {
+          "const": "System Activity"
+        },
+        "class_uid": {
+          "const": 1001
+        },
+        "class_name": {
+          "const": "File System Activity"
+        },
+        "activity_id": {
+          "lookup": "$.action",
+          "table": {
+            "copy": 1,
+            "move": 5,
+            "upload": 3,
+            "delete": 4,
+            "read": 2
+          },
+          "default": 0
+        },
+        "activity_name": {
+          "lookup": "$.action",
+          "table": {
+            "copy": "Create",
+            "move": "Rename",
+            "upload": "Update",
+            "delete": "Delete",
+            "read": "Read"
+          },
+          "default": "Unknown"
+        },
+        "type_uid": {
+          "expr": "class_uid * 100 + activity_id"
+        },
+        "severity_id": {
+          "lookup": "$.action_taken",
+          "table": {
+            "Allowed": 1,
+            "Audited": 1,
+            "Quarantined": 3,
+            "Blocked": 4
+          },
+          "default": 1
+        },
+        "severity": {
+          "lookup": "$.action_taken",
+          "table": {
+            "Allowed": "Informational",
+            "Audited": "Informational",
+            "Quarantined": "Medium",
+            "Blocked": "High"
+          },
+          "default": "Informational"
+        },
+        "disposition": {
+          "path": "$.action_taken"
+        },
+        "disposition_id": {
+          "lookup": "$.action_taken",
+          "table": {
+            "Allowed": 1,
+            "Audited": 1,
+            "Quarantined": 99,
+            "Blocked": 2
+          },
+          "default": 0
+        },
+        "device.hostname": {
+          "path": "$.host"
+        },
+        "device.type_id": {
+          "const": 5
+        },
+        "actor.user.name": {
+          "path": "$.user"
+        },
+        "file.path": {
+          "path": "$.src_path"
+        },
+        "file.name": {
+          "path": "$.src_path"
+        },
+        "file.type_id": {
+          "const": 1
+        },
+        "file.type": {
+          "const": "Regular File"
+        },
+        "message": {
+          "path": "$.policy"
+        },
+        "raw_data": {
+          "raw": true
+        }
       }
     }
   }

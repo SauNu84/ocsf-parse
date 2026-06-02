@@ -4,6 +4,7 @@
   "vendor": "Palo Alto Networks",
   "priority": "critical",
   "description": "Palo Alto PAN-OS TRAFFIC log in CSV format.",
+  "mapping_version": "1.0.0",
   "parser": {
     "regex": "^(?P<receive_time_field>\\d+),(?P<receive_time>[^,]+),(?P<serial>[^,]+),(?P<type>[^,]+),(?P<subtype>[^,]+),(?P<src_ip>[^,]+),(?P<dst_ip>[^,]+),(?P<src_zone>[^,]+),(?P<dst_zone>[^,]+),(?P<src_port>\\d+),(?P<dst_port>\\d+),(?P<protocol>[^,]+),(?P<action>[^,]+),(?P<application>[^,]+),(?P<bytes_total>\\d+),(?P<bytes_sent>\\d+),(?P<bytes_received>\\d+)$",
     "groups": [

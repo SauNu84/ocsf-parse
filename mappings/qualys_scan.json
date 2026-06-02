@@ -4,37 +4,155 @@
   "vendor": "Qualys / Tenable",
   "priority": "high",
   "description": "Vulnerability scanner findings: CVE, QID, severity, asset.",
+  "mapping_version": "1.0.0",
   "parser": "json",
   "routing": {
     "field": "$.Status",
-    "rules": [{ "default": true, "class": "vulnerability_finding" }]
+    "rules": [
+      {
+        "default": true,
+        "class": "vulnerability_finding"
+      }
+    ]
   },
   "classes": {
     "vulnerability_finding": {
       "mapping": {
-        "metadata.version":             { "const": "1.9.0-dev" },
-        "metadata.product.name":        { "const": "VMDR" },
-        "metadata.product.vendor_name": { "const": "Qualys" },
-        "metadata.uid":                 { "path": "$.QID" },
-        "metadata.logged_time":         { "time": "$.DetectionDateTime", "format": "iso8601" },
-        "time":                         { "time": "$.DetectionDateTime", "format": "iso8601" },
-        "category_uid":                 { "const": 2 },
-        "category_name":                { "const": "Findings" },
-        "class_uid":                    { "const": 2002 },
-        "class_name":                   { "const": "Vulnerability Finding" },
-        "activity_id":                  { "const": 1 },
-        "activity_name":                { "const": "Create" },
-        "type_uid":                     { "expr": "class_uid * 100 + activity_id" },
-        "severity_id":                  { "range": "$.Severity", "ranges": [[1, 1, 1], [2, 2, 2], [3, 3, 3], [4, 4, 4], [5, 5, 5]], "default": 1 },
-        "severity":                     { "range": "$.Severity", "ranges": [[1, 1, "Informational"], [2, 2, "Low"], [3, 3, "Medium"], [4, 4, "High"], [5, 5, "Critical"]], "default": "Informational" },
-        "finding_info.uid":             { "path": "$.QID" },
-        "finding_info.title":           { "path": "$.Title" },
-        "finding_info.types":           { "const": ["Vulnerability"] },
-        "vulnerabilities":              { "const": [{"cve": {"uid": "?"}}] },
-        "device.hostname":              { "path": "$.HostName" },
-        "device.ip":                    { "path": "$.IpAddress" },
-        "device.type_id":               { "const": 5 },
-        "raw_data":                     { "raw": true }
+        "metadata.version": {
+          "const": "1.9.0-dev"
+        },
+        "metadata.product.name": {
+          "const": "VMDR"
+        },
+        "metadata.product.vendor_name": {
+          "const": "Qualys"
+        },
+        "metadata.uid": {
+          "path": "$.QID"
+        },
+        "metadata.logged_time": {
+          "time": "$.DetectionDateTime",
+          "format": "iso8601"
+        },
+        "time": {
+          "time": "$.DetectionDateTime",
+          "format": "iso8601"
+        },
+        "category_uid": {
+          "const": 2
+        },
+        "category_name": {
+          "const": "Findings"
+        },
+        "class_uid": {
+          "const": 2002
+        },
+        "class_name": {
+          "const": "Vulnerability Finding"
+        },
+        "activity_id": {
+          "const": 1
+        },
+        "activity_name": {
+          "const": "Create"
+        },
+        "type_uid": {
+          "expr": "class_uid * 100 + activity_id"
+        },
+        "severity_id": {
+          "range": "$.Severity",
+          "ranges": [
+            [
+              1,
+              1,
+              1
+            ],
+            [
+              2,
+              2,
+              2
+            ],
+            [
+              3,
+              3,
+              3
+            ],
+            [
+              4,
+              4,
+              4
+            ],
+            [
+              5,
+              5,
+              5
+            ]
+          ],
+          "default": 1
+        },
+        "severity": {
+          "range": "$.Severity",
+          "ranges": [
+            [
+              1,
+              1,
+              "Informational"
+            ],
+            [
+              2,
+              2,
+              "Low"
+            ],
+            [
+              3,
+              3,
+              "Medium"
+            ],
+            [
+              4,
+              4,
+              "High"
+            ],
+            [
+              5,
+              5,
+              "Critical"
+            ]
+          ],
+          "default": "Informational"
+        },
+        "finding_info.uid": {
+          "path": "$.QID"
+        },
+        "finding_info.title": {
+          "path": "$.Title"
+        },
+        "finding_info.types": {
+          "const": [
+            "Vulnerability"
+          ]
+        },
+        "vulnerabilities": {
+          "const": [
+            {
+              "cve": {
+                "uid": "?"
+              }
+            }
+          ]
+        },
+        "device.hostname": {
+          "path": "$.HostName"
+        },
+        "device.ip": {
+          "path": "$.IpAddress"
+        },
+        "device.type_id": {
+          "const": 5
+        },
+        "raw_data": {
+          "raw": true
+        }
       }
     }
   }

@@ -4,38 +4,138 @@
   "vendor": "Various",
   "priority": "medium",
   "description": "Generic SOAR / IR playbook execution log. Splunk SOAR (Phantom), Tines, XSOAR/Demisto all emit shape-similar events: a playbook run with one or more remediation actions taken against a target. Maps to OCSF remediation_activity (category 7).",
+  "mapping_version": "1.0.0",
   "parser": "json",
   "routing": {
     "field": "$.action",
-    "rules": [{ "default": true, "class": "remediation_activity" }]
+    "rules": [
+      {
+        "default": true,
+        "class": "remediation_activity"
+      }
+    ]
   },
   "classes": {
     "remediation_activity": {
       "mapping": {
-        "metadata.version":             { "const": "1.9.0-dev" },
-        "metadata.product.name":        { "path": "$.product" },
-        "metadata.product.vendor_name": { "path": "$.vendor" },
-        "metadata.uid":                 { "path": "$.run_id" },
-        "metadata.logged_time":         { "time": "$.timestamp", "format": "iso8601" },
-        "time":                         { "time": "$.timestamp", "format": "iso8601" },
-        "category_uid":                 { "const": 7 },
-        "category_name":                { "const": "Remediation" },
-        "class_uid":                    { "const": 7001 },
-        "class_name":                   { "const": "Remediation Activity" },
-        "activity_id":                  { "lookup": "$.action", "table": {"isolate": 1, "evict": 2, "restore": 3, "harden": 4, "detect": 5}, "default": 0 },
-        "activity_name":                { "lookup": "$.action", "table": {"isolate": "Isolate", "evict": "Evict", "restore": "Restore", "harden": "Harden", "detect": "Detect"}, "default": "Unknown" },
-        "type_uid":                     { "expr": "class_uid * 100 + activity_id" },
-        "severity_id":                  { "lookup": "$.severity", "table": {"informational": 1, "low": 2, "medium": 3, "high": 4, "critical": 5}, "default": 3 },
-        "severity":                     { "lookup": "$.severity", "table": {"informational": "Informational", "low": "Low", "medium": "Medium", "high": "High", "critical": "Critical"}, "default": "Medium" },
-        "status_id":                    { "lookup": "$.status", "table": {"success": 1, "failure": 2, "running": 0}, "default": 0 },
-        "status":                       { "lookup": "$.status", "table": {"success": "Success", "failure": "Failure", "running": "Other"}, "default": "Unknown" },
-        "command_uid":                  { "path": "$.run_id" },
-        "actor.user.name":              { "path": "$.analyst" },
-        "actor.user.uid":               { "path": "$.analyst_id" },
-        "dst_endpoint.hostname":        { "path": "$.target.hostname" },
-        "dst_endpoint.ip":              { "path": "$.target.ip" },
-        "message":                      { "path": "$.playbook_name" },
-        "raw_data":                     { "raw": true }
+        "metadata.version": {
+          "const": "1.9.0-dev"
+        },
+        "metadata.product.name": {
+          "path": "$.product"
+        },
+        "metadata.product.vendor_name": {
+          "path": "$.vendor"
+        },
+        "metadata.uid": {
+          "path": "$.run_id"
+        },
+        "metadata.logged_time": {
+          "time": "$.timestamp",
+          "format": "iso8601"
+        },
+        "time": {
+          "time": "$.timestamp",
+          "format": "iso8601"
+        },
+        "category_uid": {
+          "const": 7
+        },
+        "category_name": {
+          "const": "Remediation"
+        },
+        "class_uid": {
+          "const": 7001
+        },
+        "class_name": {
+          "const": "Remediation Activity"
+        },
+        "activity_id": {
+          "lookup": "$.action",
+          "table": {
+            "isolate": 1,
+            "evict": 2,
+            "restore": 3,
+            "harden": 4,
+            "detect": 5
+          },
+          "default": 0
+        },
+        "activity_name": {
+          "lookup": "$.action",
+          "table": {
+            "isolate": "Isolate",
+            "evict": "Evict",
+            "restore": "Restore",
+            "harden": "Harden",
+            "detect": "Detect"
+          },
+          "default": "Unknown"
+        },
+        "type_uid": {
+          "expr": "class_uid * 100 + activity_id"
+        },
+        "severity_id": {
+          "lookup": "$.severity",
+          "table": {
+            "informational": 1,
+            "low": 2,
+            "medium": 3,
+            "high": 4,
+            "critical": 5
+          },
+          "default": 3
+        },
+        "severity": {
+          "lookup": "$.severity",
+          "table": {
+            "informational": "Informational",
+            "low": "Low",
+            "medium": "Medium",
+            "high": "High",
+            "critical": "Critical"
+          },
+          "default": "Medium"
+        },
+        "status_id": {
+          "lookup": "$.status",
+          "table": {
+            "success": 1,
+            "failure": 2,
+            "running": 0
+          },
+          "default": 0
+        },
+        "status": {
+          "lookup": "$.status",
+          "table": {
+            "success": "Success",
+            "failure": "Failure",
+            "running": "Other"
+          },
+          "default": "Unknown"
+        },
+        "command_uid": {
+          "path": "$.run_id"
+        },
+        "actor.user.name": {
+          "path": "$.analyst"
+        },
+        "actor.user.uid": {
+          "path": "$.analyst_id"
+        },
+        "dst_endpoint.hostname": {
+          "path": "$.target.hostname"
+        },
+        "dst_endpoint.ip": {
+          "path": "$.target.ip"
+        },
+        "message": {
+          "path": "$.playbook_name"
+        },
+        "raw_data": {
+          "raw": true
+        }
       }
     }
   }

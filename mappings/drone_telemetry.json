@@ -3,43 +3,119 @@
   "display_name": "Drone Telemetry (ASTM Remote ID)",
   "vendor": "Various",
   "priority": "low",
-  "description": "ASTM F3411 Remote ID broadcast (the FAA-mandated drone telemetry format). Maps to OCSF drone_flights_activity. Niche source — closes OCSF category 8 coverage but only useful if you have drone airspace data.",
+  "description": "ASTM F3411 Remote ID broadcast (the FAA-mandated drone telemetry format). Maps to OCSF drone_flights_activity. Niche source \u2014 closes OCSF category 8 coverage but only useful if you have drone airspace data.",
+  "mapping_version": "1.0.0",
   "parser": "json",
   "routing": {
     "field": "$.message_type",
-    "rules": [{ "default": true, "class": "drone_flights_activity" }]
+    "rules": [
+      {
+        "default": true,
+        "class": "drone_flights_activity"
+      }
+    ]
   },
   "classes": {
     "drone_flights_activity": {
       "mapping": {
-        "metadata.version":             { "const": "1.9.0-dev" },
-        "metadata.product.name":        { "const": "Remote ID Receiver" },
-        "metadata.product.vendor_name": { "const": "ASTM F3411" },
-        "metadata.uid":                 { "path": "$.message_id" },
-        "metadata.logged_time":         { "time": "$.timestamp", "format": "iso8601" },
-        "time":                         { "time": "$.timestamp", "format": "iso8601" },
-        "category_uid":                 { "const": 8 },
-        "category_name":                { "const": "Unmanned Systems" },
-        "class_uid":                    { "const": 8001 },
-        "class_name":                   { "const": "Drone Flights Activity" },
-        "activity_id":                  { "lookup": "$.message_type", "table": {"position": 1, "broadcast": 1, "telemetry": 2}, "default": 99 },
-        "activity_name":                { "lookup": "$.message_type", "table": {"position": "Capture", "broadcast": "Capture", "telemetry": "Record"}, "default": "Other" },
-        "type_uid":                     { "expr": "class_uid * 100 + activity_id" },
-        "severity_id":                  { "const": 1 },
-        "severity":                     { "const": "Informational" },
-        "unmanned_aerial_system.uid":          { "path": "$.uas.id" },
-        "unmanned_aerial_system.uuid":         { "path": "$.uas.serial_number" },
-        "unmanned_aerial_system.name":         { "path": "$.uas.name" },
-        "unmanned_aerial_system.serial_number":{ "path": "$.uas.serial_number" },
-        "unmanned_aerial_system.location.coordinates.0": { "path": "$.position.lon" },
-        "unmanned_aerial_system.location.coordinates.1": { "path": "$.position.lat" },
-        "unmanned_aerial_system.type":         { "path": "$.uas.type" },
-        "unmanned_system_operator.name":       { "path": "$.operator.name" },
-        "unmanned_system_operator.uid":        { "path": "$.operator.id" },
-        "dst_endpoint.location.coordinates.0": { "path": "$.position.lon" },
-        "dst_endpoint.location.coordinates.1": { "path": "$.position.lat" },
-        "dst_endpoint.location.country":       { "path": "$.position.country" },
-        "raw_data":                            { "raw": true }
+        "metadata.version": {
+          "const": "1.9.0-dev"
+        },
+        "metadata.product.name": {
+          "const": "Remote ID Receiver"
+        },
+        "metadata.product.vendor_name": {
+          "const": "ASTM F3411"
+        },
+        "metadata.uid": {
+          "path": "$.message_id"
+        },
+        "metadata.logged_time": {
+          "time": "$.timestamp",
+          "format": "iso8601"
+        },
+        "time": {
+          "time": "$.timestamp",
+          "format": "iso8601"
+        },
+        "category_uid": {
+          "const": 8
+        },
+        "category_name": {
+          "const": "Unmanned Systems"
+        },
+        "class_uid": {
+          "const": 8001
+        },
+        "class_name": {
+          "const": "Drone Flights Activity"
+        },
+        "activity_id": {
+          "lookup": "$.message_type",
+          "table": {
+            "position": 1,
+            "broadcast": 1,
+            "telemetry": 2
+          },
+          "default": 99
+        },
+        "activity_name": {
+          "lookup": "$.message_type",
+          "table": {
+            "position": "Capture",
+            "broadcast": "Capture",
+            "telemetry": "Record"
+          },
+          "default": "Other"
+        },
+        "type_uid": {
+          "expr": "class_uid * 100 + activity_id"
+        },
+        "severity_id": {
+          "const": 1
+        },
+        "severity": {
+          "const": "Informational"
+        },
+        "unmanned_aerial_system.uid": {
+          "path": "$.uas.id"
+        },
+        "unmanned_aerial_system.uuid": {
+          "path": "$.uas.serial_number"
+        },
+        "unmanned_aerial_system.name": {
+          "path": "$.uas.name"
+        },
+        "unmanned_aerial_system.serial_number": {
+          "path": "$.uas.serial_number"
+        },
+        "unmanned_aerial_system.location.coordinates.0": {
+          "path": "$.position.lon"
+        },
+        "unmanned_aerial_system.location.coordinates.1": {
+          "path": "$.position.lat"
+        },
+        "unmanned_aerial_system.type": {
+          "path": "$.uas.type"
+        },
+        "unmanned_system_operator.name": {
+          "path": "$.operator.name"
+        },
+        "unmanned_system_operator.uid": {
+          "path": "$.operator.id"
+        },
+        "dst_endpoint.location.coordinates.0": {
+          "path": "$.position.lon"
+        },
+        "dst_endpoint.location.coordinates.1": {
+          "path": "$.position.lat"
+        },
+        "dst_endpoint.location.country": {
+          "path": "$.position.country"
+        },
+        "raw_data": {
+          "raw": true
+        }
       }
     }
   }

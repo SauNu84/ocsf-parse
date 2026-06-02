@@ -4,39 +4,111 @@
   "vendor": "Zeek (OSS)",
   "priority": "high",
   "description": "Zeek dns.log JSON: query, answers, qtype, rcode.",
+  "mapping_version": "1.0.0",
   "parser": "json",
   "routing": {
     "field": "$.proto",
-    "rules": [{ "default": true, "class": "dns_activity" }]
+    "rules": [
+      {
+        "default": true,
+        "class": "dns_activity"
+      }
+    ]
   },
   "classes": {
     "dns_activity": {
       "mapping": {
-        "metadata.version":             { "const": "1.9.0-dev" },
-        "metadata.product.name":        { "const": "Zeek" },
-        "metadata.product.vendor_name": { "const": "Zeek" },
-        "metadata.uid":                 { "path": "$.uid" },
-        "metadata.logged_time":         { "time": "$.ts", "format": "epoch_s" },
-        "time":                         { "time": "$.ts", "format": "epoch_s" },
-        "category_uid":                 { "const": 4 },
-        "category_name":                { "const": "Network Activity" },
-        "class_uid":                    { "const": 4003 },
-        "class_name":                   { "const": "DNS Activity" },
-        "activity_id":                  { "lookup": "$.rcode_name", "table": {"NOERROR": 2, "NXDOMAIN": 2, "SERVFAIL": 2, "REFUSED": 2}, "default": 1 },
-        "activity_name":                { "lookup": "$.rcode_name", "table": {"NOERROR": "Response", "NXDOMAIN": "Response", "SERVFAIL": "Response", "REFUSED": "Response"}, "default": "Query" },
-        "type_uid":                     { "expr": "class_uid * 100 + activity_id" },
-        "severity_id":                  { "const": 1 },
-        "severity":                     { "const": "Informational" },
-        "src_endpoint.ip":              { "path": "$.id.orig_h" },
-        "src_endpoint.port":            { "int": "$.id.orig_p" },
-        "dst_endpoint.ip":              { "path": "$.id.resp_h" },
-        "dst_endpoint.port":            { "int": "$.id.resp_p" },
-        "connection_info.protocol_name":{ "path": "$.proto" },
-        "query.hostname":               { "path": "$.query" },
-        "query.type":                   { "path": "$.qtype_name" },
-        "rcode":                        { "path": "$.rcode_name" },
-        "answers":                      { "path": "$.answers" },
-        "raw_data":                     { "raw": true }
+        "metadata.version": {
+          "const": "1.9.0-dev"
+        },
+        "metadata.product.name": {
+          "const": "Zeek"
+        },
+        "metadata.product.vendor_name": {
+          "const": "Zeek"
+        },
+        "metadata.uid": {
+          "path": "$.uid"
+        },
+        "metadata.logged_time": {
+          "time": "$.ts",
+          "format": "epoch_s"
+        },
+        "time": {
+          "time": "$.ts",
+          "format": "epoch_s"
+        },
+        "category_uid": {
+          "const": 4
+        },
+        "category_name": {
+          "const": "Network Activity"
+        },
+        "class_uid": {
+          "const": 4003
+        },
+        "class_name": {
+          "const": "DNS Activity"
+        },
+        "activity_id": {
+          "lookup": "$.rcode_name",
+          "table": {
+            "NOERROR": 2,
+            "NXDOMAIN": 2,
+            "SERVFAIL": 2,
+            "REFUSED": 2
+          },
+          "default": 1
+        },
+        "activity_name": {
+          "lookup": "$.rcode_name",
+          "table": {
+            "NOERROR": "Response",
+            "NXDOMAIN": "Response",
+            "SERVFAIL": "Response",
+            "REFUSED": "Response"
+          },
+          "default": "Query"
+        },
+        "type_uid": {
+          "expr": "class_uid * 100 + activity_id"
+        },
+        "severity_id": {
+          "const": 1
+        },
+        "severity": {
+          "const": "Informational"
+        },
+        "src_endpoint.ip": {
+          "path": "$.id.orig_h"
+        },
+        "src_endpoint.port": {
+          "int": "$.id.orig_p"
+        },
+        "dst_endpoint.ip": {
+          "path": "$.id.resp_h"
+        },
+        "dst_endpoint.port": {
+          "int": "$.id.resp_p"
+        },
+        "connection_info.protocol_name": {
+          "path": "$.proto"
+        },
+        "query.hostname": {
+          "path": "$.query"
+        },
+        "query.type": {
+          "path": "$.qtype_name"
+        },
+        "rcode": {
+          "path": "$.rcode_name"
+        },
+        "answers": {
+          "path": "$.answers"
+        },
+        "raw_data": {
+          "raw": true
+        }
       }
     }
   }

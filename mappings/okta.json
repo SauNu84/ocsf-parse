@@ -4,6 +4,7 @@
   "vendor": "Okta",
   "priority": "high",
   "description": "Okta System Log: user.session.start and application.user_membership.add/remove.",
+  "mapping_version": "1.0.0",
   "parser": "json",
   "routing": {
     "field": "$.eventType",

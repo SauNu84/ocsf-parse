@@ -4,6 +4,7 @@
   "vendor": "Linux Audit",
   "priority": "critical",
   "description": "Linux auditd file syscalls: open/read/write/unlink/chmod/chown.",
+  "mapping_version": "1.0.0",
   "parser": "json",
   "routing": {
     "field": "$.action",

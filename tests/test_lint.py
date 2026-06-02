@@ -24,6 +24,35 @@ def test_lint_one_skips_when_no_sample(tmp_path, schema):
     assert r["status"] == "SKIP"
 
 
+def test_lint_one_warns_when_mapping_version_missing(tmp_path, schema):
+    """Bucket C #3 — mappings without mapping_version warn but don't fail."""
+    mapping = tmp_path / "no_version.json"
+    mapping.write_text(json.dumps({
+        "parser": "json",
+        "classes": {"authentication": {"mapping": {"k": {"const": 1}}}},
+    }))
+    sample = tmp_path / "no_version.jsonl"
+    sample.write_text("{}\n")
+    r = lint_one(mapping, sample_path=sample, schema=schema)
+    # Validation will fail (missing required attrs), but the version warning
+    # should fire regardless of the lint outcome.
+    assert any("mapping_version missing" in w for w in r.get("warnings", []))
+
+
+def test_lint_one_no_warning_when_mapping_version_present(tmp_path, schema):
+    import json as _j
+    mapping = tmp_path / "with_version.json"
+    mapping.write_text(_j.dumps({
+        "mapping_version": "1.0.0",
+        "parser": "json",
+        "classes": {"authentication": {"mapping": {"k": {"const": 1}}}},
+    }))
+    sample = tmp_path / "with_version.jsonl"
+    sample.write_text("{}\n")
+    r = lint_one(mapping, sample_path=sample, schema=schema)
+    assert not any("mapping_version missing" in w for w in r.get("warnings", []))
+
+
 def test_lint_one_flags_malformed_json(tmp_path, schema):
     mapping = tmp_path / "bad.json"
     mapping.write_text("{not json")

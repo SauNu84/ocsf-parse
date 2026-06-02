@@ -4,6 +4,7 @@
   "vendor": "Microsoft",
   "priority": "high",
   "description": "Exchange Online message trace: send, receive, quarantine, block.",
+  "mapping_version": "1.0.0",
   "parser": "json",
   "routing": {
     "field": "$.direction",

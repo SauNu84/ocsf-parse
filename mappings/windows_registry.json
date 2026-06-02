@@ -3,39 +3,109 @@
   "display_name": "Windows Sysmon Registry Activity",
   "vendor": "Microsoft",
   "priority": "high",
-  "description": "Sysmon Event IDs 12 (RegistryEvent: key create/delete), 13 (value set), 14 (rename) → OCSF Registry Key Activity. Uses the Windows extension class registry_key_activity (uid 201001).",
+  "description": "Sysmon Event IDs 12 (RegistryEvent: key create/delete), 13 (value set), 14 (rename) \u2192 OCSF Registry Key Activity. Uses the Windows extension class registry_key_activity (uid 201001).",
+  "mapping_version": "1.0.0",
   "parser": "json",
   "routing": {
     "field": "$.EventID",
-    "rules": [{ "default": true, "class": "registry_key_activity" }]
+    "rules": [
+      {
+        "default": true,
+        "class": "registry_key_activity"
+      }
+    ]
   },
   "classes": {
     "registry_key_activity": {
       "mapping": {
-        "metadata.version":             { "const": "1.9.0-dev" },
-        "metadata.product.name":        { "const": "Sysmon" },
-        "metadata.product.vendor_name": { "const": "Microsoft" },
-        "metadata.uid":                 { "path": "$.RecordID" },
-        "metadata.logged_time":         { "time": "$.UtcTime", "format": "iso8601" },
-        "time":                         { "time": "$.UtcTime", "format": "iso8601" },
-        "category_uid":                 { "const": 1 },
-        "category_name":                { "const": "System Activity" },
-        "class_uid":                    { "const": 201001 },
-        "class_name":                   { "const": "Registry Key Activity" },
-        "activity_id":                  { "lookup": "$.EventType", "table": {"CreateKey": 1, "DeleteKey": 4, "SetValue": 3, "RenameKey": 5}, "default": 0 },
-        "activity_name":                { "lookup": "$.EventType", "table": {"CreateKey": "Create", "DeleteKey": "Delete", "SetValue": "Modify", "RenameKey": "Rename"}, "default": "Unknown" },
-        "type_uid":                     { "expr": "class_uid * 100 + activity_id" },
-        "severity_id":                  { "const": 1 },
-        "severity":                     { "const": "Informational" },
-        "device.hostname":              { "path": "$.Computer" },
-        "device.type_id":               { "const": 5 },
-        "device.type":                  { "const": "Server" },
-        "actor.user.name":              { "path": "$.User" },
-        "actor.process.pid":            { "int": "$.ProcessId" },
-        "actor.process.name":           { "path": "$.Image" },
-        "actor.process.cmd_line":       { "path": "$.CommandLine" },
-        "reg_key.path":                 { "path": "$.TargetObject" },
-        "raw_data":                     { "raw": true }
+        "metadata.version": {
+          "const": "1.9.0-dev"
+        },
+        "metadata.product.name": {
+          "const": "Sysmon"
+        },
+        "metadata.product.vendor_name": {
+          "const": "Microsoft"
+        },
+        "metadata.uid": {
+          "path": "$.RecordID"
+        },
+        "metadata.logged_time": {
+          "time": "$.UtcTime",
+          "format": "iso8601"
+        },
+        "time": {
+          "time": "$.UtcTime",
+          "format": "iso8601"
+        },
+        "category_uid": {
+          "const": 1
+        },
+        "category_name": {
+          "const": "System Activity"
+        },
+        "class_uid": {
+          "const": 201001
+        },
+        "class_name": {
+          "const": "Registry Key Activity"
+        },
+        "activity_id": {
+          "lookup": "$.EventType",
+          "table": {
+            "CreateKey": 1,
+            "DeleteKey": 4,
+            "SetValue": 3,
+            "RenameKey": 5
+          },
+          "default": 0
+        },
+        "activity_name": {
+          "lookup": "$.EventType",
+          "table": {
+            "CreateKey": "Create",
+            "DeleteKey": "Delete",
+            "SetValue": "Modify",
+            "RenameKey": "Rename"
+          },
+          "default": "Unknown"
+        },
+        "type_uid": {
+          "expr": "class_uid * 100 + activity_id"
+        },
+        "severity_id": {
+          "const": 1
+        },
+        "severity": {
+          "const": "Informational"
+        },
+        "device.hostname": {
+          "path": "$.Computer"
+        },
+        "device.type_id": {
+          "const": 5
+        },
+        "device.type": {
+          "const": "Server"
+        },
+        "actor.user.name": {
+          "path": "$.User"
+        },
+        "actor.process.pid": {
+          "int": "$.ProcessId"
+        },
+        "actor.process.name": {
+          "path": "$.Image"
+        },
+        "actor.process.cmd_line": {
+          "path": "$.CommandLine"
+        },
+        "reg_key.path": {
+          "path": "$.TargetObject"
+        },
+        "raw_data": {
+          "raw": true
+        }
       }
     }
   }

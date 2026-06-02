@@ -4,6 +4,7 @@
   "vendor": "Microsoft",
   "priority": "critical",
   "description": "Sysmon Event ID 1 (process creation) and 5 (process termination).",
+  "mapping_version": "1.0.0",
   "parser": "json",
   "routing": {
     "field": "$.EventID",

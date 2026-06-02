@@ -4,39 +4,115 @@
   "vendor": "GitLab",
   "priority": "high",
   "description": "GitLab audit_events API output. Project/group/user changes map to entity_management.",
+  "mapping_version": "1.0.0",
   "parser": "json",
   "routing": {
     "field": "$.entity_type",
-    "rules": [{ "default": true, "class": "entity_management" }]
+    "rules": [
+      {
+        "default": true,
+        "class": "entity_management"
+      }
+    ]
   },
   "classes": {
     "entity_management": {
       "mapping": {
-        "metadata.version":             { "const": "1.9.0-dev" },
-        "metadata.product.name":        { "const": "GitLab" },
-        "metadata.product.vendor_name": { "const": "GitLab" },
-        "metadata.uid":                 { "path": "$.id" },
-        "metadata.logged_time":         { "time": "$.created_at", "format": "iso8601" },
-        "time":                         { "time": "$.created_at", "format": "iso8601" },
-        "category_uid":                 { "const": 3 },
-        "category_name":                { "const": "Identity & Access Management" },
-        "class_uid":                    { "const": 3004 },
-        "class_name":                   { "const": "Entity Management" },
-        "activity_id":                  { "lookup": "$.details.change", "table": {"add": 1, "create": 1, "update": 3, "remove": 4, "destroy": 4}, "default": 99, "prefix_match": true },
-        "activity_name":                { "lookup": "$.details.change", "table": {"add": "Create", "create": "Create", "update": "Update", "remove": "Delete", "destroy": "Delete"}, "default": "Other", "prefix_match": true },
-        "type_uid":                     { "expr": "class_uid * 100 + activity_id" },
-        "severity_id":                  { "const": 1 },
-        "severity":                     { "const": "Informational" },
-        "status_id":                    { "const": 1 },
-        "status":                       { "const": "Success" },
-        "actor.user.name":              { "path": "$.author_name" },
-        "actor.user.uid":               { "path": "$.author_id" },
-        "src_endpoint.ip":              { "path": "$.ip_address" },
-        "entity.name":                  { "path": "$.entity_path" },
-        "entity.uid":                   { "path": "$.entity_id" },
-        "entity.type":                  { "path": "$.entity_type" },
-        "message":                      { "path": "$.details.change" },
-        "raw_data":                     { "raw": true }
+        "metadata.version": {
+          "const": "1.9.0-dev"
+        },
+        "metadata.product.name": {
+          "const": "GitLab"
+        },
+        "metadata.product.vendor_name": {
+          "const": "GitLab"
+        },
+        "metadata.uid": {
+          "path": "$.id"
+        },
+        "metadata.logged_time": {
+          "time": "$.created_at",
+          "format": "iso8601"
+        },
+        "time": {
+          "time": "$.created_at",
+          "format": "iso8601"
+        },
+        "category_uid": {
+          "const": 3
+        },
+        "category_name": {
+          "const": "Identity & Access Management"
+        },
+        "class_uid": {
+          "const": 3004
+        },
+        "class_name": {
+          "const": "Entity Management"
+        },
+        "activity_id": {
+          "lookup": "$.details.change",
+          "table": {
+            "add": 1,
+            "create": 1,
+            "update": 3,
+            "remove": 4,
+            "destroy": 4
+          },
+          "default": 99,
+          "prefix_match": true
+        },
+        "activity_name": {
+          "lookup": "$.details.change",
+          "table": {
+            "add": "Create",
+            "create": "Create",
+            "update": "Update",
+            "remove": "Delete",
+            "destroy": "Delete"
+          },
+          "default": "Other",
+          "prefix_match": true
+        },
+        "type_uid": {
+          "expr": "class_uid * 100 + activity_id"
+        },
+        "severity_id": {
+          "const": 1
+        },
+        "severity": {
+          "const": "Informational"
+        },
+        "status_id": {
+          "const": 1
+        },
+        "status": {
+          "const": "Success"
+        },
+        "actor.user.name": {
+          "path": "$.author_name"
+        },
+        "actor.user.uid": {
+          "path": "$.author_id"
+        },
+        "src_endpoint.ip": {
+          "path": "$.ip_address"
+        },
+        "entity.name": {
+          "path": "$.entity_path"
+        },
+        "entity.uid": {
+          "path": "$.entity_id"
+        },
+        "entity.type": {
+          "path": "$.entity_type"
+        },
+        "message": {
+          "path": "$.details.change"
+        },
+        "raw_data": {
+          "raw": true
+        }
       }
     }
   }

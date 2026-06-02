@@ -37,6 +37,13 @@ def list_mappings(folder: Path | str = "mappings") -> list[dict]:
             cfg = json.loads(p.read_text())
         except json.JSONDecodeError:
             continue
+        parser_spec = cfg.get("parser")
+        if parser_spec in ("cef", "leef"):
+            parser_kind = parser_spec
+        elif parser_spec == "json":
+            parser_kind = "json"
+        else:
+            parser_kind = "regex"
         out.append(
             {
                 "name": p.stem,
@@ -46,7 +53,8 @@ def list_mappings(folder: Path | str = "mappings") -> list[dict]:
                 "vendor":       cfg.get("vendor", "Unknown"),
                 "priority":     cfg.get("priority", "medium"),
                 "description":  cfg.get("description", ""),
-                "parser_kind": "json" if cfg.get("parser") == "json" else "regex",
+                "mapping_version": cfg.get("mapping_version", "0.0.0"),
+                "parser_kind": parser_kind,
                 "classes": sorted(cfg.get("classes", {}).keys()),
                 "sample": _find_sample(p.stem, folder.parent / "samples"),
             }

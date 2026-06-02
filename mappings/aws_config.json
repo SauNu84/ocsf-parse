@@ -4,6 +4,7 @@
   "vendor": "AWS",
   "priority": "high",
   "description": "AWS Config configuration item snapshots for cloud resources.",
+  "mapping_version": "1.0.0",
   "parser": "json",
   "routing": {
     "field": "$.configurationItemStatus",

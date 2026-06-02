@@ -4,6 +4,7 @@
   "vendor": "osquery",
   "priority": "medium",
   "description": "osquery snapshot table for system_info-style host inventory.",
+  "mapping_version": "1.0.0",
   "parser": "json",
   "routing": {
     "field": "$.action",

@@ -4,36 +4,110 @@
   "vendor": "Google",
   "priority": "high",
   "description": "Google Workspace audit (Gmail send/receive events).",
+  "mapping_version": "1.0.0",
   "parser": "json",
   "routing": {
     "field": "$.event_name",
-    "rules": [{ "default": true, "class": "email_activity" }]
+    "rules": [
+      {
+        "default": true,
+        "class": "email_activity"
+      }
+    ]
   },
   "classes": {
     "email_activity": {
       "mapping": {
-        "metadata.version":             { "const": "1.9.0-dev" },
-        "metadata.product.name":        { "const": "Google Workspace" },
-        "metadata.product.vendor_name": { "const": "Google" },
-        "metadata.uid":                 { "path": "$.unique_id" },
-        "metadata.logged_time":         { "time": "$.timestamp", "format": "iso8601" },
-        "time":                         { "time": "$.timestamp", "format": "iso8601" },
-        "category_uid":                 { "const": 4 },
-        "category_name":                { "const": "Network Activity" },
-        "class_uid":                    { "const": 4009 },
-        "class_name":                   { "const": "Email Activity" },
-        "activity_id":                  { "lookup": "$.event_name", "table": {"send_message": 1, "receive_message": 2, "scan_message": 3}, "default": 0 },
-        "activity_name":                { "lookup": "$.event_name", "table": {"send_message": "Send", "receive_message": "Receive", "scan_message": "Scan"}, "default": "Unknown" },
-        "type_uid":                     { "expr": "class_uid * 100 + activity_id" },
-        "direction_id":                 { "lookup": "$.event_name", "table": {"send_message": 2, "receive_message": 1}, "default": 0 },
-        "direction":                    { "lookup": "$.event_name", "table": {"send_message": "Outbound", "receive_message": "Inbound"}, "default": "Unknown" },
-        "severity_id":                  { "const": 1 },
-        "severity":                     { "const": "Informational" },
-        "email.from":                   { "path": "$.actor_email" },
-        "email.to":                     { "path": "$.recipients" },
-        "email.subject":                { "path": "$.subject" },
-        "email.message_uid":            { "path": "$.message_id" },
-        "raw_data":                     { "raw": true }
+        "metadata.version": {
+          "const": "1.9.0-dev"
+        },
+        "metadata.product.name": {
+          "const": "Google Workspace"
+        },
+        "metadata.product.vendor_name": {
+          "const": "Google"
+        },
+        "metadata.uid": {
+          "path": "$.unique_id"
+        },
+        "metadata.logged_time": {
+          "time": "$.timestamp",
+          "format": "iso8601"
+        },
+        "time": {
+          "time": "$.timestamp",
+          "format": "iso8601"
+        },
+        "category_uid": {
+          "const": 4
+        },
+        "category_name": {
+          "const": "Network Activity"
+        },
+        "class_uid": {
+          "const": 4009
+        },
+        "class_name": {
+          "const": "Email Activity"
+        },
+        "activity_id": {
+          "lookup": "$.event_name",
+          "table": {
+            "send_message": 1,
+            "receive_message": 2,
+            "scan_message": 3
+          },
+          "default": 0
+        },
+        "activity_name": {
+          "lookup": "$.event_name",
+          "table": {
+            "send_message": "Send",
+            "receive_message": "Receive",
+            "scan_message": "Scan"
+          },
+          "default": "Unknown"
+        },
+        "type_uid": {
+          "expr": "class_uid * 100 + activity_id"
+        },
+        "direction_id": {
+          "lookup": "$.event_name",
+          "table": {
+            "send_message": 2,
+            "receive_message": 1
+          },
+          "default": 0
+        },
+        "direction": {
+          "lookup": "$.event_name",
+          "table": {
+            "send_message": "Outbound",
+            "receive_message": "Inbound"
+          },
+          "default": "Unknown"
+        },
+        "severity_id": {
+          "const": 1
+        },
+        "severity": {
+          "const": "Informational"
+        },
+        "email.from": {
+          "path": "$.actor_email"
+        },
+        "email.to": {
+          "path": "$.recipients"
+        },
+        "email.subject": {
+          "path": "$.subject"
+        },
+        "email.message_uid": {
+          "path": "$.message_id"
+        },
+        "raw_data": {
+          "raw": true
+        }
       }
     }
   }

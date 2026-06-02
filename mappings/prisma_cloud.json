@@ -4,36 +4,96 @@
   "vendor": "Palo Alto Networks",
   "priority": "medium",
   "description": "Prisma Cloud CSPM policy violations on cloud resources.",
+  "mapping_version": "1.0.0",
   "parser": "json",
   "routing": {
     "field": "$.status",
-    "rules": [{ "default": true, "class": "config_state" }]
+    "rules": [
+      {
+        "default": true,
+        "class": "config_state"
+      }
+    ]
   },
   "classes": {
     "config_state": {
       "mapping": {
-        "metadata.version":             { "const": "1.9.0-dev" },
-        "metadata.product.name":        { "const": "Prisma Cloud" },
-        "metadata.product.vendor_name": { "const": "Palo Alto Networks" },
-        "metadata.uid":                 { "path": "$.alertId" },
-        "metadata.logged_time":         { "time": "$.time", "format": "iso8601" },
-        "time":                         { "time": "$.time", "format": "iso8601" },
-        "category_uid":                 { "const": 5 },
-        "category_name":                { "const": "Discovery" },
-        "class_uid":                    { "const": 5002 },
-        "class_name":                   { "const": "Device Config State" },
-        "activity_id":                  { "const": 1 },
-        "activity_name":                { "const": "Log" },
-        "type_uid":                     { "expr": "class_uid * 100 + activity_id" },
-        "severity_id":                  { "lookup": "$.policy.severity", "table": {"informational": 1, "low": 2, "medium": 3, "high": 4, "critical": 5}, "default": 1 },
-        "severity":                     { "path": "$.policy.severity" },
-        "device.uid":                   { "path": "$.resource.id" },
-        "device.name":                  { "path": "$.resource.name" },
-        "device.type":                  { "path": "$.resource.type" },
-        "device.type_id":               { "const": 99 },
-        "cloud.provider":               { "path": "$.resource.cloudType" },
-        "message":                      { "path": "$.policy.name" },
-        "raw_data":                     { "raw": true }
+        "metadata.version": {
+          "const": "1.9.0-dev"
+        },
+        "metadata.product.name": {
+          "const": "Prisma Cloud"
+        },
+        "metadata.product.vendor_name": {
+          "const": "Palo Alto Networks"
+        },
+        "metadata.uid": {
+          "path": "$.alertId"
+        },
+        "metadata.logged_time": {
+          "time": "$.time",
+          "format": "iso8601"
+        },
+        "time": {
+          "time": "$.time",
+          "format": "iso8601"
+        },
+        "category_uid": {
+          "const": 5
+        },
+        "category_name": {
+          "const": "Discovery"
+        },
+        "class_uid": {
+          "const": 5002
+        },
+        "class_name": {
+          "const": "Device Config State"
+        },
+        "activity_id": {
+          "const": 1
+        },
+        "activity_name": {
+          "const": "Log"
+        },
+        "type_uid": {
+          "expr": "class_uid * 100 + activity_id"
+        },
+        "severity_id": {
+          "lookup": "$.policy.severity",
+          "table": {
+            "informational": 1,
+            "low": 2,
+            "medium": 3,
+            "high": 4,
+            "critical": 5
+          },
+          "default": 1
+        },
+        "severity": {
+          "path": "$.policy.severity"
+        },
+        "device.uid": {
+          "path": "$.resource.id"
+        },
+        "device.name": {
+          "path": "$.resource.name"
+        },
+        "device.type": {
+          "path": "$.resource.type"
+        },
+        "device.type_id": {
+          "const": 99
+        },
+        "cloud.provider": {
+          "path": "$.resource.cloudType"
+        },
+        "message": {
+          "path": "$.policy.name"
+        },
+        "raw_data": {
+          "raw": true
+        }
       }
     }
   }

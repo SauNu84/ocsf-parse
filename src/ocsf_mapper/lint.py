@@ -20,13 +20,19 @@ from ocsf_mapper.validate import validate
 
 
 def lint_one(mapping_path: Path, sample_path: Optional[Path], schema: Schema) -> dict:
-    """Lint a single mapping. Returns a dict summarizing the outcome."""
+    """Lint a single mapping. Returns a dict summarizing the outcome.
+
+    Includes a non-fatal ``warnings`` list: presently this catches the
+    mapping_version absence (PLAN.md §3a Bucket C #3) so an unbumped
+    edit gets a warning, not a hard fail.
+    """
     result = {
         "name": mapping_path.stem,
         "status": "OK",
         "events": 0,
         "classes": [],
         "errors": [],
+        "warnings": [],
     }
     if sample_path is None:
         result["status"] = "SKIP"
@@ -39,6 +45,12 @@ def lint_one(mapping_path: Path, sample_path: Optional[Path], schema: Schema) ->
         result["status"] = "FAIL"
         result["errors"].append(f"mapping is not valid JSON: {e}")
         return result
+
+    if not config.get("mapping_version"):
+        result["warnings"].append(
+            "mapping_version missing — add a semver string (e.g. \"1.0.0\") "
+            "to track edits over time"
+        )
 
     lines = sample_path.read_text().splitlines()
     classes_seen: set[str] = set()
@@ -82,6 +94,7 @@ def main(folder: Optional[str] = None) -> int:
     width = max(len(r["name"]) for r in results)
     flag = {"OK": "✓", "FAIL": "✗", "SKIP": "·"}
     rc = 0
+    n_warn = 0
     print(f"linting {len(results)} mapping(s)\n")
     for r in results:
         info = (
@@ -94,9 +107,15 @@ def main(folder: Optional[str] = None) -> int:
             rc = 1
             for line in r["errors"][1:]:
                 print(f"        {line}")
+        for w in r.get("warnings", []) or []:
+            n_warn += 1
+            print(f"        ⚠ {w}")
 
     print()
-    print("OVERALL: PASS" if rc == 0 else "OVERALL: FAIL")
+    summary = "PASS" if rc == 0 else "FAIL"
+    if n_warn:
+        summary += f"  ({n_warn} warning(s))"
+    print(f"OVERALL: {summary}")
     return rc
 
 
