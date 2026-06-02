@@ -1,0 +1,48 @@
+{
+  "source_name": "cef_generic",
+  "display_name": "CEF (Common Event Format) — generic",
+  "vendor": "Various",
+  "priority": "high",
+  "description": "Vendor-neutral CEF parser. Most security appliances that 'send syslog' actually send CEF (ArcSight format). Routes everything to detection_finding by default — vendor/product comes from the CEF header, src/dst/severity etc. come from the extension fields.",
+  "parser": "cef",
+  "routing": {
+    "field": "$.device_vendor",
+    "rules": [{ "default": true, "class": "detection_finding" }]
+  },
+  "classes": {
+    "detection_finding": {
+      "mapping": {
+        "metadata.version":             { "const": "1.9.0-dev" },
+        "metadata.product.name":        { "path": "$.device_product" },
+        "metadata.product.vendor_name": { "path": "$.device_vendor" },
+        "metadata.product.version":     { "path": "$.device_version" },
+        "metadata.uid":                 { "path": "$.signature_id" },
+        "metadata.logged_time":         { "time": "$.rt", "format": "epoch_ms" },
+        "time":                         { "time": "$.rt", "format": "epoch_ms" },
+        "category_uid":                 { "const": 2 },
+        "category_name":                { "const": "Findings" },
+        "class_uid":                    { "const": 2004 },
+        "class_name":                   { "const": "Detection Finding" },
+        "activity_id":                  { "const": 1 },
+        "activity_name":                { "const": "Create" },
+        "type_uid":                     { "expr": "class_uid * 100 + activity_id" },
+        "severity_id":                  { "range": "$.severity", "ranges": [[0, 3, 1], [4, 6, 3], [7, 8, 4], [9, 10, 5]], "default": 1 },
+        "severity":                     { "range": "$.severity", "ranges": [[0, 3, "Informational"], [4, 6, "Medium"], [7, 8, "High"], [9, 10, "Critical"]], "default": "Informational" },
+        "finding_info.uid":             { "path": "$.signature_id" },
+        "finding_info.title":           { "path": "$.name" },
+        "finding_info.types":           { "const": ["CEF Forwarder"] },
+        "src_endpoint.ip":              { "path": "$.src" },
+        "src_endpoint.port":            { "int": "$.spt" },
+        "src_endpoint.hostname":        { "path": "$.shost" },
+        "dst_endpoint.ip":              { "path": "$.dst" },
+        "dst_endpoint.port":            { "int": "$.dpt" },
+        "dst_endpoint.hostname":        { "path": "$.dhost" },
+        "actor.user.name":              { "path": "$.suser" },
+        "actor.user.uid":               { "path": "$.suid" },
+        "message":                      { "path": "$.msg" },
+        "disposition":                  { "path": "$.act" },
+        "raw_data":                     { "raw": true }
+      }
+    }
+  }
+}

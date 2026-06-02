@@ -1,0 +1,5 @@
+LEEF:1.0|IBM|QRadar|7.5|notable|devTime=1779891791000	cat=brute_force_detected	sev=7	src=203.0.113.42	dst=10.0.1.42	dstPort=22	usrName=root	msg=Multiple SSH failures from external IP
+LEEF:1.0|FireEye|HX|34.30|threat_detected|devTime=1779891801000	cat=malware_callback	sev=9	src=10.0.2.55	usrName=alice	action=quarantine	msg=Detected C2 communication to known APT infrastructure
+LEEF:2.0|Splunk|UBA|5.0.1|anomaly|^|devTime=1779891811000^cat=anomalous_data_access^sev=6^src=10.0.3.15^usrName=carol^msg=User accessed 4.2GB outside normal pattern
+LEEF:1.0|Imperva|SecureSphere|14.3|attack|devTime=1779891821000	cat=sql_injection	sev=8	src=198.51.100.7	dst=10.0.1.42	dstPort=443	action=block	msg=SQL injection attempt blocked
+LEEF:2.0|Checkpoint|Firewall|R81|fw_event|\t|devTime=1779891831000	cat=ips_attack	sev=8	src=192.0.2.55	dst=10.0.5.20	dstPort=445	action=drop	msg=Blocked exploit attempt CVE-2024-1234

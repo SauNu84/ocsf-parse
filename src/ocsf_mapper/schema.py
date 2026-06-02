@@ -70,9 +70,15 @@ class Schema:
         return _load_class_cached(self.root, name)
 
     def class_summaries(self) -> list[dict]:
-        """One row per event class: {name, caption, category, description, path}."""
+        """One row per event class: {name, caption, category, description, path, extension}.
+
+        Walks both the core ``events/`` tree and every per-extension
+        ``extensions/<name>/events/`` tree. Extension-sourced classes have
+        ``extension`` set to the extension name (e.g. ``"windows"``);
+        core classes have ``extension=None``.
+        """
         out = []
-        for p in (self.root / "events").rglob("*.json"):
+        for p, ext_name in _iter_class_files(self.root):
             if p.name == "base_event.json":
                 continue
             cls = json.loads(p.read_text())
@@ -85,15 +91,43 @@ class Schema:
                     "category": cls.get("category") or p.parent.name,
                     "description": cls.get("description", ""),
                     "path": str(p.relative_to(self.root)),
+                    "extension": ext_name,
                 }
             )
-        return sorted(out, key=lambda x: (x["category"], x["name"]))
+        return sorted(out, key=lambda x: (x["extension"] or "", x["category"], x["name"]))
+
+
+def _iter_class_files(root: Path):
+    """Yield ``(path, extension_name_or_None)`` for every event class file.
+
+    Walks ``events/**.json`` first (core classes) then
+    ``extensions/<ext>/events/**.json`` for each extension directory.
+    """
+    for p in (root / "events").rglob("*.json"):
+        yield p, None
+    ext_root = root / "extensions"
+    if not ext_root.is_dir():
+        return
+    for ext_dir in sorted(ext_root.iterdir()):
+        if not ext_dir.is_dir():
+            continue
+        events_dir = ext_dir / "events"
+        if not events_dir.is_dir():
+            continue
+        for p in events_dir.rglob("*.json"):
+            yield p, ext_dir.name
 
 
 @lru_cache(maxsize=None)
 def _load_class_cached(root: Path, name: str) -> dict:
-    """Merge a class definition with its ancestors (extends chain)."""
-    candidates = list((root / "events").rglob(f"{name}.json"))
+    """Merge a class definition with its ancestors (extends chain).
+
+    Searches the core ``events/`` tree first, then every
+    ``extensions/<ext>/events/`` subtree. This lets mappings reference
+    extension classes like ``registry_key_activity`` (Windows extension)
+    by their bare name.
+    """
+    candidates = [p for p, _ext in _iter_class_files(root) if p.name == f"{name}.json"]
     if not candidates:
         if name == "base_event":
             return json.loads((root / "events" / "base_event.json").read_text())

@@ -1,0 +1,6 @@
+CEF:0|Fortinet|FortiGate|7.2.4|10000|policy_violation|7|rt=1779891791000 src=203.0.113.50 spt=54322 dst=10.0.1.42 dpt=443 act=deny suser=external_attacker msg=Policy violation: SQL injection signature matched
+CEF:0|Symantec|EndpointProtection|14.3|41003|virus_detected|9|rt=1779891811000 src=10.0.2.55 shost=workstation-42 suser=alice act=quarantine msg=Trojan.Generic.30001 detected in download
+CEF:0|Cisco|ASA|9.14|106023|Connection denied|5|rt=1779891821000 src=198.51.100.7 spt=39201 dst=10.0.3.15 dpt=22 act=deny msg=Connection denied by ACL outside-in
+CEF:0|McAfee|EPO|5.10|44102|signature_update_failed|3|rt=1779891831000 shost=server-08 act=alert msg=DAT update failed: connection timeout to repository
+CEF:0|TrendMicro|DeepSecurity|20.0|6001|firewall_event|6|rt=1779891841000 src=192.0.2.100 spt=445 dst=10.0.5.20 dpt=445 act=deny msg=Inbound SMB blocked - violates policy DefaultPolicy
+CEF:0|PaloAltoNetworks|PAN-OS|10.2|31|wildfire_verdict|8|rt=1779891851000 src=10.0.1.99 shost=alice-laptop suser=alice act=block msg=WildFire verdict: malicious - file hash a1b2c3d4

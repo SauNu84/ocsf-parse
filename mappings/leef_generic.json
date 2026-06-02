@@ -1,0 +1,45 @@
+{
+  "source_name": "leef_generic",
+  "display_name": "LEEF (Log Event Extended Format) — generic",
+  "vendor": "Various",
+  "priority": "medium",
+  "description": "Vendor-neutral LEEF parser (IBM's competitor to CEF). Same shape as cef_generic — vendor/product from the header, indicators from key=value extension fields. Tab-delimited in LEEF 1.0, custom delimiter in LEEF 2.0.",
+  "parser": "leef",
+  "routing": {
+    "field": "$.vendor",
+    "rules": [{ "default": true, "class": "detection_finding" }]
+  },
+  "classes": {
+    "detection_finding": {
+      "mapping": {
+        "metadata.version":             { "const": "1.9.0-dev" },
+        "metadata.product.name":        { "path": "$.product" },
+        "metadata.product.vendor_name": { "path": "$.vendor" },
+        "metadata.product.version":     { "path": "$.version" },
+        "metadata.uid":                 { "path": "$.event_id" },
+        "metadata.logged_time":         { "time": "$.devTime", "format": "epoch_ms" },
+        "time":                         { "time": "$.devTime", "format": "epoch_ms" },
+        "category_uid":                 { "const": 2 },
+        "category_name":                { "const": "Findings" },
+        "class_uid":                    { "const": 2004 },
+        "class_name":                   { "const": "Detection Finding" },
+        "activity_id":                  { "const": 1 },
+        "activity_name":                { "const": "Create" },
+        "type_uid":                     { "expr": "class_uid * 100 + activity_id" },
+        "severity_id":                  { "range": "$.sev", "ranges": [[0, 3, 1], [4, 6, 3], [7, 8, 4], [9, 10, 5]], "default": 1 },
+        "severity":                     { "range": "$.sev", "ranges": [[0, 3, "Informational"], [4, 6, "Medium"], [7, 8, "High"], [9, 10, "Critical"]], "default": "Informational" },
+        "finding_info.uid":             { "path": "$.event_id" },
+        "finding_info.title":           { "path": "$.cat" },
+        "finding_info.types":           { "const": ["LEEF Forwarder"] },
+        "src_endpoint.ip":              { "path": "$.src" },
+        "src_endpoint.port":            { "int": "$.srcPort" },
+        "dst_endpoint.ip":              { "path": "$.dst" },
+        "dst_endpoint.port":            { "int": "$.dstPort" },
+        "actor.user.name":              { "path": "$.usrName" },
+        "message":                      { "path": "$.msg" },
+        "disposition":                  { "path": "$.action" },
+        "raw_data":                     { "raw": true }
+      }
+    }
+  }
+}

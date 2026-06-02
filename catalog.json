@@ -272,6 +272,30 @@
       "ocsf": { "category_uid": 6, "category_name": "Application Activity", "class_uid": 6003, "class_name": "API Activity" },
       "priority": "high",
       "description": "Kubernetes API server audit log (audit.k8s.io/v1 Event). Verbs map to api_activity.activity_id."
+    },
+    {
+      "source": "windows_registry",
+      "display_name": "Windows Sysmon Registry Activity",
+      "vendor": "Microsoft",
+      "ocsf": { "category_uid": 1, "category_name": "System Activity", "class_uid": 201001, "class_name": "Registry Key Activity" },
+      "priority": "high",
+      "description": "Sysmon Event IDs 12 / 13 / 14 → OCSF Registry Key Activity. Uses the Windows extension class (class_uid 201001)."
+    },
+    {
+      "source": "cef_generic",
+      "display_name": "CEF (Common Event Format) — generic",
+      "vendor": "Various",
+      "ocsf": { "category_uid": 2, "category_name": "Findings", "class_uid": 2004, "class_name": "Detection Finding" },
+      "priority": "high",
+      "description": "Vendor-neutral CEF parser. One mapping unlocks Fortinet / Symantec / Cisco / McAfee / Trend Micro / Palo Alto and any other appliance that emits CEF over syslog."
+    },
+    {
+      "source": "leef_generic",
+      "display_name": "LEEF (Log Event Extended Format) — generic",
+      "vendor": "Various",
+      "ocsf": { "category_uid": 2, "category_name": "Findings", "class_uid": 2004, "class_name": "Detection Finding" },
+      "priority": "medium",
+      "description": "Vendor-neutral LEEF parser (IBM's competitor to CEF). Same shape as cef_generic. Supports LEEF 1.0 (tab-separated) and LEEF 2.0 (custom delimiter)."
     }
   ]
 }
