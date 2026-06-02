@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.3.1 — 2026-06-02 (Patch: release pipeline + docs polish)
+
+First-run hardening for the v0.3 release pipeline. No code-level
+behaviour changes; just things you'd discover trying to actually
+ship v0.3.0.
+
+### Fixes
+- **`_fastjson` stdlib fallback test now works on Python 3.12** (`8264127`):
+  the stdlib-only fixture used the deprecated `find_module` /
+  `load_module` meta_path API to mask orjson. Python 3.12 stopped
+  calling that legacy API, so the test couldn't actually hide orjson
+  — the assertion `HAS_ORJSON is False` failed. Switched to the
+  documented `sys.modules[name] = None` idiom for masking modules.
+- **CI now installs every optional extra** (`8264127`): `ci.yml` was
+  installing `[dev,parquet]` — no orjson, so the stdlib branch was
+  the natural path and the bug above was invisible until the publish
+  workflow tried to run with `[fast]` installed. CI now installs
+  `[dev,web,parquet,fast]` to match publish.yml.
+
+### Docs
+- **`QUICKSTART.md`** (`b07500f`): concrete 5-minute walkthrough using
+  the Docker image. Browse the catalog → map a log → web UI →
+  generate a new mapping → process at volume. Shows actual output
+  instead of abstract flag lists. README points to it at the top of
+  "Quickstart".
+- **README OCSF category table refresh** (`2ff3dea`): the coverage
+  table had 6 rows from before Bucket B finished; now matches the
+  headline "8 of 8 OCSF categories" and includes the sources added in
+  Bucket B (github_audit, gitlab_audit, slack_audit, k8s_audit,
+  cef_generic, leef_generic, windows_registry, soar_remediation,
+  drone_telemetry).
+
+---
+
 ## 0.3.0 — 2026-06-02 (Distribution + Buckets B & C complete)
 
 Three themes since 0.2.0: **distribution** (PyPI, Docker, landing
