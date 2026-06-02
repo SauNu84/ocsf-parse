@@ -514,3 +514,37 @@ footer {
   max-height: 480px;
   overflow: auto;
 }
+
+/* ---- audit log view (Bucket C #1) -------------------------------- */
+
+.audit h1 { margin: 4px 0 8px; font-size: 22px; }
+.audit .back { color: var(--fg-muted); font-size: 12px; text-decoration: none; }
+.audit .hint { color: var(--fg-muted); font-size: 13px; }
+.audit-table {
+  width: 100%;
+  margin-top: 14px;
+  border-collapse: collapse;
+  font-size: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.audit-table th, .audit-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+.audit-table th {
+  background: var(--bg);
+  font-weight: 600;
+  font-size: 11px;
+}
+.audit-table tr:last-child td { border-bottom: none; }
+.audit-table .ts { font-family: var(--mono); font-size: 11px; color: var(--fg-muted); }
+.audit-table .num { font-family: var(--mono); font-size: 11px; }
+.audit-table .ok { color: var(--ok); }
+.audit-table .fail { color: var(--fail); }
+.audit-table .row-fail td { background: rgba(207, 34, 46, 0.04); }
+.audit-table .issues ul { margin: 0; padding-left: 16px; color: var(--fail); font-family: var(--mono); font-size: 11px; }

@@ -226,12 +226,17 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
             sample_path = candidates[0] if candidates else None
 
         # Lint before writing.
+        from ocsf_mapper.audit import log_edit
+        bytes_after = len(content.encode("utf-8"))
         tmp_path = target.with_suffix(".json.tmp")
         mappings_dir.mkdir(parents=True, exist_ok=True)
         tmp_path.write_text(json.dumps(parsed, indent=2) + "\n")
         try:
             result = lint_one(tmp_path, sample_path, schema)
             if result["status"] != "OK":
+                log_edit(root_path, mapping=source_name, action="create",
+                         lint_status=result["status"], errors=result["errors"],
+                         bytes_before=0, bytes_after=bytes_after)
                 return templates.TemplateResponse(
                     request,
                     "partials/wizard_error.html",
@@ -243,6 +248,8 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
             if tmp_path.exists():
                 tmp_path.unlink()
 
+        log_edit(root_path, mapping=source_name, action="create",
+                 lint_status="OK", bytes_before=0, bytes_after=bytes_after)
         return templates.TemplateResponse(
             request,
             "partials/wizard_done.html",
@@ -508,18 +515,26 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
 
     @app.post("/sources/{name}/save", response_class=HTMLResponse)
     def source_save(name: str, request: Request, content: str = Form(...)) -> HTMLResponse:
+        from ocsf_mapper.audit import log_edit
         path = mappings_dir / f"{name}.json"
         if not path.exists():
             raise HTTPException(status_code=404, detail=f"unknown source: {name}")
+
+        bytes_before = path.stat().st_size
+        bytes_after = len(content.encode("utf-8"))
 
         # 1. JSON syntax check
         try:
             parsed = json.loads(content)
         except json.JSONDecodeError as e:
+            errs = [f"invalid JSON: {e}"]
+            log_edit(root_path, mapping=name, action="update",
+                     lint_status="REJECTED", errors=errs,
+                     bytes_before=bytes_before, bytes_after=bytes_after)
             return templates.TemplateResponse(
                 request,
                 "partials/save_result.html",
-                {"ok": False, "errors": [f"invalid JSON: {e}"]},
+                {"ok": False, "errors": errs},
                 status_code=400,
             )
 
@@ -531,10 +546,14 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
         try:
             result = lint_one(tmp_path, sample_path, schema)
             if result["status"] != "OK":
+                errs = result["errors"] or [result["status"]]
+                log_edit(root_path, mapping=name, action="update",
+                         lint_status=result["status"], errors=errs,
+                         bytes_before=bytes_before, bytes_after=bytes_after)
                 return templates.TemplateResponse(
                     request,
                     "partials/save_result.html",
-                    {"ok": False, "errors": result["errors"] or [result["status"]]},
+                    {"ok": False, "errors": errs},
                     status_code=400,
                 )
             tmp_path.replace(path)
@@ -542,6 +561,8 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
             if tmp_path.exists():
                 tmp_path.unlink()
 
+        log_edit(root_path, mapping=name, action="update",
+                 lint_status="OK", bytes_before=bytes_before, bytes_after=bytes_after)
         return templates.TemplateResponse(
             request,
             "partials/save_result.html",
@@ -555,6 +576,62 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
             if entry["name"] == name and entry["sample"]:
                 return Path(entry["sample"])
         return None
+
+    # -- audit log view ----------------------------------------------------
+
+    @app.get("/audit", response_class=HTMLResponse)
+    def audit_view(request: Request) -> HTMLResponse:
+        from ocsf_mapper.audit import read_audit
+        events = read_audit(root_path, limit=500)
+        return templates.TemplateResponse(
+            request, "audit.html", {"events": events, "n": len(events)},
+        )
+
+    # -- Prometheus /metrics ----------------------------------------------
+
+    @app.get("/metrics", response_class=HTMLResponse)
+    def metrics() -> HTMLResponse:
+        """Prometheus exposition format. Stdlib output — no client dep."""
+        from ocsf_mapper.audit import read_audit
+        rows = _sorted_catalog_rows()
+        ok    = sum(1 for r in rows if r["lint_status"] == "ok")
+        fail  = sum(1 for r in rows if r["lint_status"] == "fail")
+        cov_scores = [r["coverage"]["score"] for r in rows if r.get("coverage")]
+        avg_score = sum(cov_scores) / len(cov_scores) if cov_scores else 0
+        audit_events = read_audit(root_path)
+        save_ok   = sum(1 for e in audit_events if e["lint_status"] == "OK")
+        save_fail = sum(1 for e in audit_events if e["lint_status"] in ("FAIL", "REJECTED"))
+
+        lines = [
+            "# HELP ocsf_mappings_total Number of mappings in the catalog.",
+            "# TYPE ocsf_mappings_total gauge",
+            f"ocsf_mappings_total {len(rows)}",
+            "# HELP ocsf_mappings_lint_ok Number of mappings whose pinned sample lints clean.",
+            "# TYPE ocsf_mappings_lint_ok gauge",
+            f"ocsf_mappings_lint_ok {ok}",
+            "# HELP ocsf_mappings_lint_fail Number of mappings whose pinned sample lints with errors.",
+            "# TYPE ocsf_mappings_lint_fail gauge",
+            f"ocsf_mappings_lint_fail {fail}",
+            "# HELP ocsf_mappings_coverage_avg Average weighted coverage score (required+recommended).",
+            "# TYPE ocsf_mappings_coverage_avg gauge",
+            f"ocsf_mappings_coverage_avg {avg_score:.4f}",
+            "# HELP ocsf_mapping_edits_total Number of audited mapping edit events.",
+            "# TYPE ocsf_mapping_edits_total counter",
+            f"ocsf_mapping_edits_total {len(audit_events)}",
+            "# HELP ocsf_mapping_edits_saved_total Audited edits that committed to disk.",
+            "# TYPE ocsf_mapping_edits_saved_total counter",
+            f"ocsf_mapping_edits_saved_total {save_ok}",
+            "# HELP ocsf_mapping_edits_rejected_total Audited edits the lint gate blocked.",
+            "# TYPE ocsf_mapping_edits_rejected_total counter",
+            f"ocsf_mapping_edits_rejected_total {save_fail}",
+            "# HELP ocsf_schema_version_info Current OCSF schema version (label-only metric).",
+            "# TYPE ocsf_schema_version_info gauge",
+            f'ocsf_schema_version_info{{version="{schema.version()}"}} 1',
+        ]
+        return HTMLResponse(
+            content="\n".join(lines) + "\n",
+            media_type="text/plain; version=0.0.4; charset=utf-8",
+        )
 
     return app
 

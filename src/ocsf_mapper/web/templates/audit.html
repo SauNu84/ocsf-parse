@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Audit log — ocsf-mapper{% endblock %}
+{% block content %}
+<section class="audit">
+  <a href="/" class="back">← all sources</a>
+  <h1>Mapping edit audit log</h1>
+  <p class="hint">
+    Append-only log of every mapping change made through the web UI.
+    Newest first; capped at the most recent {{ n }} events. Backed by
+    <code>audit/mapping_edits.ndjson</code>. Rotate / archive at the
+    OS level if needed.
+  </p>
+
+  {% if not events %}
+  <p class="empty">No audit events yet. Save a mapping from the Mapping
+  tab or the New-source wizard to start the log.</p>
+  {% else %}
+  <table class="audit-table">
+    <thead>
+      <tr>
+        <th>Timestamp (UTC)</th>
+        <th>User</th>
+        <th>Action</th>
+        <th>Mapping</th>
+        <th>Status</th>
+        <th>Bytes (before → after)</th>
+        <th>Errors</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in events %}
+      <tr class="row-{{ 'ok' if e.lint_status == 'OK' else 'fail' }}">
+        <td class="ts">{{ e.ts }}</td>
+        <td>{{ e.user }}</td>
+        <td>{{ e.action }}</td>
+        <td><a href="/sources/{{ e.mapping }}"><code>{{ e.mapping }}</code></a></td>
+        <td>
+          {% if e.lint_status == 'OK' %}<span class="ok">✓ saved</span>
+          {% else %}<span class="fail">✗ {{ e.lint_status|lower }}</span>{% endif %}
+        </td>
+        <td class="num">
+          {% if e.bytes_before is not none and e.bytes_after is not none %}
+            {{ e.bytes_before }} → {{ e.bytes_after }}
+          {% else %}—{% endif %}
+        </td>
+        <td class="issues">
+          {% if e.errors %}
+            <ul>{% for err in e.errors %}<li>{{ err }}</li>{% endfor %}</ul>
+          {% else %}—{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</section>
+{% endblock %}

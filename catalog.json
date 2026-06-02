@@ -296,6 +296,22 @@
       "ocsf": { "category_uid": 2, "category_name": "Findings", "class_uid": 2004, "class_name": "Detection Finding" },
       "priority": "medium",
       "description": "Vendor-neutral LEEF parser (IBM's competitor to CEF). Same shape as cef_generic. Supports LEEF 1.0 (tab-separated) and LEEF 2.0 (custom delimiter)."
+    },
+    {
+      "source": "soar_remediation",
+      "display_name": "SOAR Remediation (generic)",
+      "vendor": "Various",
+      "ocsf": { "category_uid": 7, "category_name": "Remediation", "class_uid": 7001, "class_name": "Remediation Activity" },
+      "priority": "medium",
+      "description": "Generic SOAR / IR playbook execution log (Splunk SOAR / Tines / XSOAR). Closes OCSF category 7."
+    },
+    {
+      "source": "drone_telemetry",
+      "display_name": "Drone Telemetry (ASTM Remote ID)",
+      "vendor": "Various",
+      "ocsf": { "category_uid": 8, "category_name": "Unmanned Systems", "class_uid": 8001, "class_name": "Drone Flights Activity" },
+      "priority": "low",
+      "description": "ASTM F3411 Remote ID broadcast — the FAA-mandated drone telemetry format. Closes OCSF category 8."
     }
   ]
 }
