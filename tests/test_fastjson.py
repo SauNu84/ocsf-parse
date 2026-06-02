@@ -44,33 +44,41 @@ def test_roundtrip_with_nested_structures():
 
 @pytest.fixture
 def stdlib_only(monkeypatch):
-    """Reload _fastjson with orjson hidden so we exercise the stdlib branch."""
+    """Reload _fastjson with orjson hidden so we exercise the stdlib branch.
+
+    Uses the documented ``sys.modules[name] = None`` trick to mask a module —
+    ``import name`` then raises ``ModuleNotFoundError``. This is more
+    portable than registering a meta_path finder, which on Python 3.12+
+    no longer calls the legacy ``find_module`` / ``load_module`` API.
+    """
     import importlib
     import sys
 
     # Stash whatever's there.
-    saved_orjson = sys.modules.pop("orjson", None)
+    saved_orjson = sys.modules.get("orjson")
 
-    # Block import of orjson during reimport.
-    class _Block:
-        def find_module(self, name, path=None):
-            return self if name == "orjson" else None
+    # Setting sys.modules[name] = None is the canonical way to make
+    # `import name` raise ModuleNotFoundError, regardless of whether the
+    # module is actually installed on disk.
+    monkeypatch.setitem(sys.modules, "orjson", None)
 
-        def load_module(self, name):
-            raise ImportError("orjson blocked for test")
+    # Force reload of _fastjson so its module-level `try: import orjson`
+    # runs against the masked entry.
+    monkeypatch.delitem(sys.modules, "ocsf_mapper._fastjson", raising=False)
+    fj = importlib.import_module("ocsf_mapper._fastjson")
+    assert fj.HAS_ORJSON is False
 
-    sys.meta_path.insert(0, _Block())
     try:
-        sys.modules.pop("ocsf_mapper._fastjson", None)
-        fj = importlib.import_module("ocsf_mapper._fastjson")
-        assert fj.HAS_ORJSON is False
         yield fj
     finally:
-        sys.meta_path.pop(0)
+        # Restore orjson (monkeypatch already handles unwind, but be
+        # explicit so the next test sees the real module) and reload
+        # _fastjson so other tests get the orjson-backed version.
         if saved_orjson is not None:
             sys.modules["orjson"] = saved_orjson
+        else:
+            sys.modules.pop("orjson", None)
         sys.modules.pop("ocsf_mapper._fastjson", None)
-        # Restore so other tests see the normal module.
         importlib.import_module("ocsf_mapper._fastjson")
 
 

@@ -27,10 +27,14 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
 
-      - name: Install package + dev deps
+      - name: Install package + every optional extra
+        # Match what `publish.yml` installs (dev,web,parquet,fast) so
+        # the regular CI catches bugs that only surface when extras are
+        # present — e.g. the _fastjson stdlib-fallback test only fails
+        # when orjson is actually installed.
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e .[dev,parquet]
+          python -m pip install -e '.[dev,web,parquet,fast]'
 
       - name: Run pytest (with coverage)
         run: |
