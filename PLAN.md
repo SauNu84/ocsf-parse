@@ -5,7 +5,7 @@
 > configs per source, LLM-assisted onboarding, validating UI.
 
 > **Implementation status:** Phase A, B, C complete; Phase D in progress.
-> 33 reference mappings live, ~245 tests passing on Python 3.9 / 3.11 / 3.12.
+> 36 reference mappings live, ~272 tests passing on Python 3.9 / 3.11 / 3.12.
 > See [`CHANGELOG.md`](./CHANGELOG.md) for the commit timeline. Status
 > tags on each phase below; original design rationale preserved verbatim.
 
@@ -360,7 +360,7 @@ deployment.
 
 ### Bucket B — more mappings (started in v0.3 post-tag)
 
-33 mappings cover 17 OCSF classes / 6 of 8 OCSF categories. Real-world
+36 mappings cover 18 OCSF classes / 6 of 8 OCSF categories. Real-world
 SOC ingest needs more SaaS audit logs, the major generic vendor
 formats, and the two unmapped OCSF categories.
 
@@ -369,16 +369,20 @@ formats, and the two unmapped OCSF categories.
 - [x] **`gitlab_audit`** — GitLab audit_events → entity_management
 - [x] **`slack_audit`** — Slack Enterprise Grid audit log →
       authentication + entity_management
-- [x] **`k8s_audit`** — Kubernetes API server audit log (the canonical
-      cluster control-plane log) → api_activity
-- [ ] **CEF generic parser** — most "$VENDOR sends syslog" sources
-      emit CEF; one mapping unlocks dozens of vendors. Likely needs
-      a new parser kind beyond `regex` — the extension-pair part is
-      not regex-friendly.
-- [ ] **LEEF generic parser** — IBM's variant. Similar mechanism to CEF.
-- [ ] **`windows_registry_activity`** — `registry_key_activity` lives
-      in the Windows extension of ocsf-schema. Needs the schema loader
-      to also walk `ocsf-schema/extensions/windows/` before this can lint.
+- [x] **`k8s_audit`** — Kubernetes API server audit log → api_activity
+- [x] **CEF generic parser** — `parser: "cef"` in the DSL. The 8-field
+      pipe header + key=value extension are parsed natively; ext keys
+      flatten to top-level paths so `$.src` etc. just work. The
+      `cef_generic` mapping routes any CEF source (Fortinet, Symantec,
+      Cisco ASA, ...) to detection_finding.
+- [x] **LEEF generic parser** — `parser: "leef"`. Supports LEEF 1.0
+      (tab-delimited extension) and LEEF 2.0 (custom delimiter declared
+      in the header). `leef_generic` mirrors `cef_generic`.
+- [x] **`windows_registry`** — `registry_key_activity` from the
+      Windows OCSF extension. Schema loader was extended to walk
+      `ocsf-schema/extensions/<ext>/events/` so extension classes
+      work transparently — they appear in `class_summaries()` with
+      an `extension` field set.
 - [ ] **OCSF category 7 (remediation)** — pick a real SOAR / playbook
       source (Splunk SOAR / Tines / Demisto). `remediation_activity`.
 - [ ] **OCSF category 8 (unmanned_systems)** — niche; only worth
@@ -439,6 +443,8 @@ others are larger.
 {
   "source_name": "<short_name>",
   "parser": "json"
+          | "cef"
+          | "leef"
           | { "regex": "<pattern>", "groups": ["..."] },
   "routing": {
     "field": "$.<source.path>",          // OR a regex group name
