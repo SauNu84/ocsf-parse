@@ -29,6 +29,11 @@ Browse the master-data view with `ocsf-mapper catalog` or
 
 ## Quickstart
 
+> **First time here?** Read [`QUICKSTART.md`](./QUICKSTART.md) — a
+> 5-minute concrete walkthrough showing exactly what comes out
+> when you point this at your logs. Comes back here when you want
+> the full install / CLI / SDK reference.
+
 ### From PyPI (once 0.3.0 ships)
 
 ```bash
