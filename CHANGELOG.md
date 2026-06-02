@@ -1,5 +1,88 @@
 # Changelog
 
+## 0.3.0 — 2026-06-02 (Distribution + Buckets B & C complete)
+
+Three themes since 0.2.0: **distribution** (PyPI, Docker, landing
+page, Spark UDF reference), **mapping coverage** (Bucket B — 8/8
+OCSF categories), and **production hardening** (Bucket C — audit
+log, Prometheus, mapping versioning, provider test mocks, replay
+tool).
+
+### Distribution
+- **PyPI publish workflow** (`6c2d27a`): tag-triggered Trusted
+  Publisher pipeline. Version-mismatch sanity check refuses to build
+  if pyproject, `__init__.py`, and the tag disagree.
+- **Docker image** (`a76b42b`): `.github/workflows/docker.yml` pushes
+  to `ghcr.io/saunu84/ocsf-mapper` on tag push and main. Single-stage
+  python:3.12-slim + tini; default CMD is `serve --host 0.0.0.0`.
+- **Spark UDF reference** (`75fe76c`): runnable PySpark job at
+  `examples/spark/cloudtrail_udf.py` + companion README. Closes the
+  blueprint → "you can copy this and run it" gap from
+  DESIGN_DISTRIBUTED.md §3a.
+- **Landing page** (`75fe76c`): static site at `docs/` deployed via
+  GitHub Pages. Fetches `catalog.json` live so the table stays in
+  sync with the repo without doc edits.
+- **DESIGN_DISTRIBUTED.md** (`04d51fd`): architecture doc covering
+  three runtime adapters (Spark / Flink / Vector) + CI-gate patterns.
+- **RELEASE_CHECKLIST.md** (`c525d5e`): one-time setup + cut-release
+  recipe.
+
+### Bucket B — mapping coverage (8/8 OCSF categories)
+- **GitHub Enterprise audit** (`1f6d6cc`): `github_audit`
+- **GitLab audit_events** (`1f6d6cc`): `gitlab_audit`
+- **Slack Enterprise Grid audit** (`1f6d6cc`): `slack_audit`
+- **Kubernetes API server audit** (`1f6d6cc`): `k8s_audit`
+- **CEF generic parser** (`516c5fd`): new `parser: "cef"` kind in the
+  DSL. `cef_generic` mapping unlocks Fortinet / Symantec / Cisco ASA
+  / McAfee / Trend Micro / Palo Alto without per-vendor mappings.
+- **LEEF generic parser** (`516c5fd`): `parser: "leef"`. Supports
+  LEEF 1.0 (tab-delimited) and LEEF 2.0 (custom delimiter).
+- **Schema extensions loader** (`516c5fd`): `Schema.load_class` now
+  walks `ocsf-schema/extensions/<ext>/events/`. `windows_registry`
+  mapping uses the Windows extension's `registry_key_activity`
+  (class_uid 201001).
+- **`soar_remediation`** (`b5cf970`): closes OCSF category 7
+  (Remediation). Generic SOAR playbook execution shape (Splunk SOAR
+  / Tines / XSOAR).
+- **`drone_telemetry`** (`b5cf970`): closes OCSF category 8
+  (Unmanned Systems). ASTM F3411 Remote ID broadcast.
+
+**Final state: 38 mappings, 20 OCSF classes, 8/8 categories.**
+
+### Bucket C — production hardening
+- **Audit log of mapping edits** (`0095301`): NDJSON log at
+  `<root>/audit/mapping_edits.ndjson`. Web app writes one event per
+  save (Mapping editor or wizard) — saved, rejected, or lint-failed.
+  New `/audit` HTML view in the top nav. User attribution via
+  `OCSF_AUDIT_USER` / `USER` / `USERNAME`.
+- **Prometheus /metrics endpoint** (`0095301`): seven gauges and
+  counters — mapping count, lint pass/fail, coverage average, edit
+  counters, schema-version label. Stdlib output, no prometheus_client
+  dep added.
+- **`mapping_version` field** (`4841b75`): semver string at the top
+  of each mapping. Lint emits a non-fatal warning when absent
+  ("OVERALL: PASS (N warning(s))"). All 38 reference mappings
+  backfilled to 1.0.0.
+- **Provider test mocks** (`14fff23`): 15 new tests using sys.modules
+  injection to fake the Anthropic / OpenAI SDKs. Brings the provider
+  package from ~50% to 100% coverage.
+- **Replay tool** (`62d1eb4`): `ocsf-mapper replay <input> <mapping>
+  <output>` re-applies a new mapping over historical OCSF
+  Parquet/JSONL output by walking `raw_data`. Skips events without
+  raw_data; non-zero exit if 0 events remapped (CI-gate friendly).
+
+### CLI surface
+8 → **12 subcommands**: + `replay`, + `apply` flags `--workers`
+and `--redact` (from 0.2.0).
+
+### Quality
+- Tests: 243 → ~310.
+- Coverage: ~92%.
+- New web routes: `/audit`, `/metrics`.
+- All 38 mappings lint clean on Python 3.9 / 3.11 / 3.12 CI.
+
+---
+
 ## 0.2.0 — 2026-05-30 (Phase D + perf series)
 
 Closed most of the Phase D items + a five-commit perf series in response
