@@ -5,7 +5,8 @@
 > configs per source, LLM-assisted onboarding, validating UI.
 
 > **Implementation status:** Phase A, B, C complete; Phase D in progress.
-> 36 reference mappings live, ~272 tests passing on Python 3.9 / 3.11 / 3.12.
+> 38 reference mappings live, ~272 tests passing on Python 3.9 / 3.11 / 3.12.
+> OCSF coverage: **8/8 categories** as of 2026-06-02.
 > See [`CHANGELOG.md`](./CHANGELOG.md) for the commit timeline. Status
 > tags on each phase below; original design rationale preserved verbatim.
 
@@ -360,9 +361,10 @@ deployment.
 
 ### Bucket B — more mappings (started in v0.3 post-tag)
 
-36 mappings cover 18 OCSF classes / 6 of 8 OCSF categories. Real-world
-SOC ingest needs more SaaS audit logs, the major generic vendor
-formats, and the two unmapped OCSF categories.
+38 mappings cover 20 OCSF classes / **8 of 8 OCSF categories**. Bucket
+B is complete; every OCSF top-level category has at least one
+mapping. Real-world SOC ingest will still want more SaaS audit logs
+and more vendor formats — those go in v0.4+ on demand.
 
 - [x] **`github_audit`** — GitHub Enterprise audit log → authentication
       (logins) + api_activity (everything else)
@@ -383,10 +385,14 @@ formats, and the two unmapped OCSF categories.
       `ocsf-schema/extensions/<ext>/events/` so extension classes
       work transparently — they appear in `class_summaries()` with
       an `extension` field set.
-- [ ] **OCSF category 7 (remediation)** — pick a real SOAR / playbook
-      source (Splunk SOAR / Tines / Demisto). `remediation_activity`.
-- [ ] **OCSF category 8 (unmanned_systems)** — niche; only worth
-      doing if a real drone-telemetry workload comes through.
+- [x] **OCSF category 7 (remediation)** — `soar_remediation` mapping
+      against a generic SOAR playbook execution event shape
+      (Splunk SOAR / Tines / XSOAR all flow through). class_uid 7001.
+- [x] **OCSF category 8 (unmanned_systems)** — `drone_telemetry` mapping
+      against the ASTM F3411 Remote ID broadcast format
+      (FAA-mandated drone identification). class_uid 8001.
+
+**Bucket B is now complete. All 8 OCSF top-level categories covered.**
 
 ### Bucket C — production engineering
 

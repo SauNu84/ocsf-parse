@@ -9,7 +9,7 @@ web UI and LLM-assisted onboarding.
 
 ## What it does
 
-**36 reference mappings**, **18 OCSF event classes**, **6 of 8 OCSF
+**38 reference mappings**, **20 OCSF event classes**, **8 of 8 OCSF
 categories** — from Windows Event Log / Sysmon / auditd through CloudTrail /
 Okta / Azure AD to Suricata / Wazuh / CrowdStrike. Each mapping ships with
 a paired ~100-event sample, is lint-checked on every PR, and validates
