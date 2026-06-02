@@ -170,6 +170,14 @@ def cmd_benchmark(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_replay(args: argparse.Namespace) -> int:
+    from ocsf_mapper.replay import render_summary, replay_path
+    result = replay_path(args.input, args.mapping, args.output)
+    print(render_summary(result), end="", file=sys.stderr)
+    print(f"  → {args.output}", file=sys.stderr)
+    return 0 if result["remapped"] > 0 else 1
+
+
 def cmd_diff(args: argparse.Namespace) -> int:
     from ocsf_mapper.mapping_diff import diff_mappings, render_text_report
     diff = diff_mappings(args.a, args.b)
@@ -340,6 +348,16 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--json", action="store_true",
                     help="Emit the diff as JSON instead of plain text.")
     sp.set_defaults(func=cmd_diff)
+
+    # replay
+    sp = sub.add_parser(
+        "replay",
+        help="Re-apply a new mapping over historical OCSF Parquet/JSONL output.",
+    )
+    sp.add_argument("input",  help="Historical OCSF events (JSONL file, .parquet file, or directory of .parquet).")
+    sp.add_argument("mapping", help="Path to the new mapping config to apply.")
+    sp.add_argument("output", help="Output path. Sink kind inferred from extension.")
+    sp.set_defaults(func=cmd_replay)
 
     # generate
     sp = sub.add_parser("generate", help="LLM-draft a new mapping from a sample.")
