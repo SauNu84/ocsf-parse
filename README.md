@@ -9,25 +9,27 @@ web UI and LLM-assisted onboarding.
 
 ## What it does
 
-**38 reference mappings**, **20 OCSF event classes**, **8 of 8 OCSF
+**43 reference mappings**, **20 OCSF event classes**, **8 of 8 OCSF
 categories** — from Windows Event Log / Sysmon / auditd through CloudTrail /
-Okta / Azure AD to Suricata / Wazuh / CrowdStrike. Each mapping ships with
-a paired ~100-event sample, is lint-checked on every PR, and validates
-against the vendored OCSF schema.
+Okta / Azure AD / Duo / Defender / GuardDuty to Suricata / Wazuh /
+CrowdStrike / Vault / PagerDuty. Each mapping ships with a paired sample,
+is lint-checked on every PR, and validates against the vendored OCSF schema.
 
 | OCSF category | Classes covered | Sources |
 |---|---|---|
 | System Activity | `file_activity`, `kernel_activity`, `process_activity`, `scheduled_job_activity`, `registry_key_activity` | auditd_file, dlp_events, falco_kernel, sysmon_process, cron, windows_registry |
-| Findings | `security_finding`, `detection_finding`, `vulnerability_finding` | wazuh, splunk_es_alert, crowdstrike_falcon, suricata_alert, qualys_scan, ueba_alert, cef_generic, leef_generic |
-| IAM | `authentication`, `entity_management` | okta, sshd, cloudtrail (ConsoleLogin), windows_event_log, azure_ad_signin, slack_audit, gitlab_audit |
+| Findings | `security_finding`, `detection_finding`, `vulnerability_finding` | wazuh, splunk_es_alert, crowdstrike_falcon, suricata_alert, qualys_scan, ueba_alert, cef_generic, leef_generic, **aws_guardduty**, **microsoft_defender** |
+| IAM | `authentication`, `entity_management` | okta, sshd, cloudtrail (ConsoleLogin), windows_event_log, azure_ad_signin, slack_audit, gitlab_audit, **duo_security** |
 | Network | `network_activity`, `http_activity`, `dns_activity`, `email_activity` | nginx, apache, cloudflare, palo_alto, vpc_flow_logs, waf_logs, zeek_dns, m365_email, google_workspace |
 | Discovery | `inventory_info`, `config_state`, `device_config_state_change` | osquery_inventory, aws_config, jamf_inventory, prisma_cloud |
-| Application Activity | `api_activity` | cloudtrail (non-login), github_audit, k8s_audit |
-| Remediation | `remediation_activity` | soar_remediation |
+| Application Activity | `api_activity` | cloudtrail (non-login), github_audit, k8s_audit, **hashicorp_vault** |
+| Remediation | `remediation_activity` | soar_remediation, **pagerduty** |
 | Unmanned Systems | `drone_flights_activity` | drone_telemetry |
 
 Browse the master-data view with `ocsf-mapper catalog` or
 [`catalog.json`](./catalog.json).
+
+![Homepage — two-pane catalog with OCSF tree, search, and card grid](docs/screenshots/homepage.png)
 
 ## Quickstart
 
@@ -36,7 +38,7 @@ Browse the master-data view with `ocsf-mapper catalog` or
 > when you point this at your logs. Comes back here when you want
 > the full install / CLI / SDK reference.
 
-### From PyPI (once 0.3.0 ships)
+### From PyPI
 
 ```bash
 pip install 'ocsf-mapper[web,parquet,fast]'
@@ -48,13 +50,14 @@ ocsf-mapper list
 ```bash
 git clone --recurse-submodules https://github.com/SauNu84/ocsf-parse
 cd ocsf-parse
-pip install -e '.[dev,web,parquet,fast]'    # full feature set incl. orjson
+pip install -e '.[dev,web,parquet,fast]'         # full feature set incl. orjson
+scripts/setup_schema_versions.sh                 # pin OCSF 1.7.0 + 1.8.0 worktrees
 ```
 
 ### From Docker (zero-install)
 
 ```bash
-docker run --rm -p 8000:8000 ghcr.io/saunu84/ocsf-mapper:0.3.0
+docker run --rm -p 8000:8000 ghcr.io/saunu84/ocsf-mapper:0.4.1
 # → web UI on http://127.0.0.1:8000
 
 # or pin to "latest" tag:
@@ -125,22 +128,44 @@ git submodule update --init --recursive
 
 `ocsf-mapper serve` launches a FastAPI + HTMX + Monaco app on `127.0.0.1`.
 
-- **Homepage** — card grid of every mapping with priority badge, OCSF
-  class+uid, lint status, and a coverage bar.
-- **Per-source page** — five HTMX-swappable tabs:
+- **Homepage** — two-pane catalog: KPI strip (sources / categories /
+  classes / lint-clean) + collapsible OCSF category tree on the left,
+  live-search + filtered card grid on the right. Filter state syncs to
+  the URL hash so views are shareable.
+- **Per-source page** — six HTMX-swappable tabs:
   - *Sample* — raw lines of the pinned sample.
   - *Output* — drop any log file → side-by-side raw / mapped OCSF /
     per-event validation.
-  - *Mapping* — Monaco JSON editor. Save runs the linter against the
-    pinned sample server-side and only writes the file if it passes.
+  - *Mapping* — Monaco JSON editor with a **"Lint against OCSF"
+    dropdown** (default 1.9.0-dev / pinned 1.8.0 / 1.7.0). Save runs
+    the linter against the pinned sample at the chosen schema version
+    server-side and only writes the file if it passes.
   - *Validation* — full validator report across the pinned sample with a
     recurring-issues rollup.
   - *Coverage* — per-class bars (required + recommended attrs populated)
     + lists of missing fields.
+  - *Snippets* — copy-paste-ready CLI / Python SDK / PySpark UDF /
+    Pandas blocks for the current mapping, templated with the actual
+    mapping path and pinned sample.
 - **`/new` wizard** — upload a sample, fill in vendor / priority, the
   generator drafts a mapping via the configured LLM provider, you review
   the JSON in Monaco, hit save, the linter gate runs before the file is
   written.
+
+![Snippets tab — CLI / Python / PySpark / Pandas](docs/screenshots/source-snippets.png)
+
+![Mapping tab — "Lint against OCSF" version dropdown](docs/screenshots/source-mapping.png)
+
+### Audit trail
+
+Every save through the Mapping tab or the `/new` wizard appends a record
+to `audit/mapping_edits.ndjson` (gitignored — per-install operational
+state). The `/audit` page surfaces the last 500 events with timestamp,
+user, mapping, lint status, byte delta, and any errors — answers the
+compliance question *"who changed `cloudtrail.json` last Tuesday?"* without
+shelling into `jq`.
+
+![Audit log — every save attempt recorded](docs/screenshots/audit.png)
 
 ## SDK
 
