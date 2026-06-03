@@ -21,6 +21,12 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Materialise pinned OCSF schema versions
+        # Tests for the schema-version selector (added in v0.4.0) expect
+        # ocsf-schema-1.8.0/ + ocsf-schema-1.7.0/ as sibling worktrees of
+        # the submodule. The script is idempotent.
+        run: bash scripts/setup_schema_versions.sh
+
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:

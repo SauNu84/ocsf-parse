@@ -18,6 +18,12 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Materialise pinned OCSF schema versions
+        # Tests for the schema-version selector (added in v0.4.0) expect
+        # ocsf-schema-1.8.0/ + ocsf-schema-1.7.0/ as sibling worktrees of
+        # the submodule. Same step as ci.yml; kept in sync deliberately.
+        run: bash scripts/setup_schema_versions.sh
+
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
