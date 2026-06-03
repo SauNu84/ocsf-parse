@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI, Form, HTTPException, Query, Request, UploadFile, File
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -532,6 +532,106 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
                 "summary": coverage_summary(cov),
             },
         )
+
+    @app.post("/sources/{name}/fix-with-ai")
+    def source_fix_with_ai(
+        name: str,
+        content: str = Form(...),
+        schema_version: str = Form(""),
+    ) -> JSONResponse:
+        """Ask the configured LLM provider to repair a broken mapping.
+
+        Re-runs the linter against the in-progress Monaco content,
+        captures the errors, and asks the LLM to produce a fixed
+        mapping. Returns the fix as a JSON string the frontend stuffs
+        into the editor buffer; the user still has to click Save,
+        which re-runs the gate.
+        """
+        from ocsf_mapper.generate import fix_mapping
+        from ocsf_mapper.providers import get_provider
+
+        path = mappings_dir / f"{name}.json"
+        if not path.exists():
+            return JSONResponse(
+                {"ok": False, "error": f"unknown source: {name}"},
+                status_code=404,
+            )
+
+        # 1. Parse — fix flow requires a valid-JSON starting point.
+        try:
+            current = json.loads(content)
+        except json.JSONDecodeError as e:
+            return JSONResponse(
+                {"ok": False, "error": f"invalid JSON: {e}. Fix the syntax first."},
+                status_code=400,
+            )
+
+        # 2. Resolve target schema (default or pinned alternate).
+        try:
+            target_schema = _get_schema(schema_version or None)
+        except FileNotFoundError as e:
+            return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+
+        # 3. Re-run lint to capture current errors. We write to a sibling
+        #    tmp file mirroring the save flow — keeps lint_one's I/O shape.
+        sample_path = _find_sample_path(name)
+        tmp_path = path.with_suffix(".json.fixtmp")
+        tmp_path.write_text(json.dumps(current, indent=2) + "\n")
+        try:
+            result = lint_one(tmp_path, sample_path, target_schema)
+        finally:
+            if tmp_path.exists():
+                tmp_path.unlink()
+        if result["status"] == "OK":
+            return JSONResponse(
+                {"ok": False, "error": "Nothing to fix — mapping lints clean."},
+                status_code=400,
+            )
+
+        sample_lines: list[str] = []
+        if sample_path and sample_path.exists():
+            sample_lines = [
+                ln for ln in sample_path.read_text().splitlines() if ln.strip()
+            ][:5]
+
+        # 4. Call the LLM. Surface every failure mode as a clear string.
+        try:
+            provider = get_provider()
+            fixed = fix_mapping(
+                current,
+                result["errors"],
+                sample_lines,
+                provider=provider,
+                schema=target_schema,
+            )
+        except RuntimeError as e:
+            # get_provider() raises RuntimeError when no key is configured.
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "error": str(e),
+                    "code": "no_provider",
+                },
+                status_code=503,
+            )
+        except (json.JSONDecodeError, ValueError) as e:
+            return JSONResponse(
+                {"ok": False, "error": f"LLM response was not valid JSON: {e}"},
+                status_code=502,
+            )
+        except Exception as e:  # network, rate-limit, etc.
+            return JSONResponse(
+                {"ok": False, "error": f"LLM call failed: {e!r}"},
+                status_code=502,
+            )
+
+        return JSONResponse({
+            "ok": True,
+            "mapping": json.dumps(fixed, indent=2),
+            "n_errors_fixed": len(result["errors"]),
+            "schema_version": target_schema.version(),
+            "provider": getattr(provider, "name", "unknown"),
+        })
 
     @app.get("/sources/{name}/snippets", response_class=HTMLResponse)
     def source_snippets(name: str, request: Request) -> HTMLResponse:

@@ -10,7 +10,9 @@ import pytest
 from ocsf_mapper.generate import (
     _strip_codefence,
     draft_mapping,
+    fix_mapping,
     generate,
+    prompt_fix,
     suggest_classes,
 )
 from ocsf_mapper.providers import FixtureProvider
@@ -90,3 +92,53 @@ def test_strip_codefence_handles_json_fence():
 
 def test_strip_codefence_no_fence_passthrough():
     assert _strip_codefence("{\"a\": 1}") == '{"a": 1}'
+
+
+# ---------------------------------------------------------------------------
+# fix_mapping — Mapping-tab "Fix with AI" flow
+# ---------------------------------------------------------------------------
+
+
+def test_prompt_fix_includes_errors_and_schema_context(schema):
+    """The fix prompt must surface both the linter errors and the required-
+    attribute list for the target class, so the LLM can repair specifically
+    what's broken without rewriting working sections."""
+    current = {
+        "parser": "json",
+        "classes": {
+            "authentication": {"mapping": {"class_uid": {"const": 3002}}}
+        },
+    }
+    errors = ["event #1 (authentication): missing required attribute: category_uid"]
+    prompt = prompt_fix(current, errors, ["{\"event_type\":\"login\"}"], schema)
+    assert "category_uid" in prompt
+    assert "FIXED" in prompt
+    assert "authentication" in prompt
+    # Required-attr list (we filter to required/recommended) — auth_protocol
+    # is recommended on the Authentication class, so it should be in scope.
+    assert "auth_protocol" in prompt
+
+
+def test_fix_mapping_parses_llm_response(repo_root, schema):
+    """End-to-end via FixtureProvider: a broken mapping in, a parsed dict
+    out. The fixture canned response is the current cloudtrail config."""
+    provider = FixtureProvider(
+        fixture_dir=repo_root / "tests" / "fixtures" / "llm",
+        source="cloudtrail_fix",
+    )
+    broken = {"parser": "json", "classes": {"authentication": {"mapping": {}}}}
+    errors = ["event #1 (authentication): missing required attribute: category_uid"]
+    result = fix_mapping(broken, errors, ["{}"], provider=provider, schema=schema)
+    assert isinstance(result, dict)
+    # The fixture returned cloudtrail; sanity-check it parsed as a mapping.
+    assert "source_name" in result or "classes" in result
+
+
+def test_fix_mapping_truncates_long_error_list(schema, fixture_provider):
+    """Caps the error list at 30 lines in the prompt to keep token spend
+    bounded; surplus errors collapse to a tail count."""
+    current = {"parser": "json", "classes": {"authentication": {"mapping": {}}}}
+    many = [f"event #{i}: missing required attribute: x" for i in range(50)]
+    prompt = prompt_fix(current, many, [], schema)
+    assert "elided" in prompt
+    assert "20 more" in prompt

@@ -499,6 +499,36 @@ footer {
 .save-error ul { margin: 6px 0 0 0; padding-left: 20px; }
 .save-error .hint { color: var(--fg-muted); margin: 6px 0 0; }
 
+/* Fix-with-AI panel — same shape as save-ok / save-error but distinct
+   hue so the user knows the source of the change. */
+.ai-ok {
+  background: #eef4ff;
+  border: 1px solid #4a8af4;
+  color: #1b3a8a;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+.ai-ok code {
+  font-family: var(--mono);
+  font-size: 12px;
+  background: rgba(74, 138, 244, 0.12);
+  padding: 0 4px;
+  border-radius: 3px;
+}
+.ai-error {
+  background: #fff4e5;
+  border: 1px solid var(--warn);
+  color: #6c4400;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+#btn-fix-with-ai:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 /* ---- validation tab (step 2) -------------------------------------- */
 
 .validation-summary {

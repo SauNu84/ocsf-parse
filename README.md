@@ -139,7 +139,11 @@ git submodule update --init --recursive
   - *Mapping* — Monaco JSON editor with a **"Lint against OCSF"
     dropdown** (default 1.9.0-dev / pinned 1.8.0 / 1.7.0). Save runs
     the linter against the pinned sample at the chosen schema version
-    server-side and only writes the file if it passes.
+    server-side and only writes the file if it passes. After a failed
+    save, a **✨ Fix with AI** button enables — one click sends the
+    current mapping + lint errors + first 5 sample events to the
+    configured LLM provider, drops the repaired JSON back into the
+    editor. The user still hits Save; the linter is the final gate.
   - *Validation* — full validator report across the pinned sample with a
     recurring-issues rollup.
   - *Coverage* — per-class bars (required + recommended attrs populated)

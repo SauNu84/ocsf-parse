@@ -12,9 +12,17 @@
         {% endfor %}
       </select>
     </label>
+    <button id="btn-fix-with-ai"
+            class="btn-secondary"
+            onclick="ocsfFixWithAI('{{ name }}')"
+            disabled
+            title="Available after a failed save — asks the configured LLM provider to repair the mapping against the lint errors.">
+      ✨ Fix with AI
+    </button>
     <button class="btn-primary" onclick="ocsfSaveMapping('{{ name }}')">Save</button>
   </div>
   <div id="save-result" class="save-result"></div>
+  <div id="ai-result" class="save-result"></div>
   <div id="monaco-host" data-initial="{{ mapping_json|e }}"></div>
 </div>
 
@@ -42,6 +50,11 @@
       });
     });
 
+    function _setAiButtonEnabled(on) {
+      var btn = document.getElementById('btn-fix-with-ai');
+      if (btn) btn.disabled = !on;
+    }
+
     window.ocsfSaveMapping = function(name) {
       if (!window.__ocsfEditor) return;
       var content = window.__ocsfEditor.getValue();
@@ -49,14 +62,59 @@
       fd.append('content', content);
       var pick = document.getElementById('schema-version-select');
       if (pick) fd.append('schema_version', pick.value || '');
+      // Clear any prior AI notice when the user re-saves.
+      document.getElementById('ai-result').innerHTML = '';
       fetch('/sources/' + encodeURIComponent(name) + '/save', { method: 'POST', body: fd })
         .then(function(r) { return r.text().then(function(t) { return { html: t, ok: r.ok }; }); })
         .then(function(res) {
           document.getElementById('save-result').innerHTML = res.html;
+          // Save failed → enable Fix-with-AI. Save succeeded → disable it.
+          _setAiButtonEnabled(!res.ok);
         })
         .catch(function(err) {
           document.getElementById('save-result').innerHTML =
             '<div class="save-error">network error: ' + err + '</div>';
+          _setAiButtonEnabled(true);  // still let the user try AI fix
+        });
+    };
+
+    window.ocsfFixWithAI = function(name) {
+      if (!window.__ocsfEditor) return;
+      var btn = document.getElementById('btn-fix-with-ai');
+      var aiBox = document.getElementById('ai-result');
+      var content = window.__ocsfEditor.getValue();
+      var fd = new FormData();
+      fd.append('content', content);
+      var pick = document.getElementById('schema-version-select');
+      if (pick) fd.append('schema_version', pick.value || '');
+      if (btn) { btn.disabled = true; btn.textContent = '✨ Thinking…'; }
+      aiBox.innerHTML = '';
+      fetch('/sources/' + encodeURIComponent(name) + '/fix-with-ai',
+            { method: 'POST', body: fd })
+        .then(function(r) { return r.json().then(function(j) { return { json: j, ok: r.ok }; }); })
+        .then(function(res) {
+          var j = res.json;
+          if (res.ok && j.ok && j.mapping) {
+            // Stuff the suggestion into Monaco. User still has to Save —
+            // that's the linter gate. AI is just a typing accelerator.
+            window.__ocsfEditor.setValue(j.mapping);
+            aiBox.innerHTML =
+              '<div class="ai-ok">' +
+              '✨ AI suggested a fix for ' + (j.n_errors_fixed || 0) +
+              ' error(s) via <code>' + (j.provider || 'provider') + '</code>' +
+              (j.schema_version ? ' (OCSF ' + j.schema_version + ')' : '') +
+              '. Review the editor and click <strong>Save</strong> when ready.' +
+              '</div>';
+          } else {
+            var msg = (j && j.error) || ('HTTP ' + (res.ok ? '200' : 'error'));
+            aiBox.innerHTML = '<div class="ai-error">✨ ' + msg + '</div>';
+          }
+        })
+        .catch(function(err) {
+          aiBox.innerHTML = '<div class="ai-error">network error: ' + err + '</div>';
+        })
+        .finally(function() {
+          if (btn) { btn.textContent = '✨ Fix with AI'; btn.disabled = false; }
         });
     };
   })();

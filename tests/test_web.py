@@ -173,6 +173,102 @@ def test_save_against_missing_version_returns_clear_error(client):
 
 
 # ---------------------------------------------------------------------------
+# Fix-with-AI endpoint
+# ---------------------------------------------------------------------------
+
+
+def test_fix_with_ai_returns_repaired_mapping(client, monkeypatch, repo_root):
+    """End-to-end: post a broken mapping, the configured FixtureProvider
+    returns a fixed mapping, the endpoint surfaces it as JSON."""
+    monkeypatch.setenv("OCSF_LLM_PROVIDER", "fixture")
+    monkeypatch.setenv(
+        "OCSF_LLM_FIXTURE_DIR", str(repo_root / "tests" / "fixtures" / "llm"),
+    )
+    monkeypatch.setenv("OCSF_LLM_FIXTURE_SOURCE", "cloudtrail_fix")
+
+    # Valid JSON but missing required attrs — lints fail, then AI fixes.
+    broken = (
+        '{"parser":"json",'
+        '"classes":{"authentication":{"mapping":{"class_uid":{"const":3002}}}}}'
+    )
+    r = client.post("/sources/cloudtrail/fix-with-ai", data={"content": broken})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["ok"] is True
+    assert body["provider"] == "fixture"
+    assert body["n_errors_fixed"] >= 1
+    # The returned `mapping` is a JSON string the frontend will load into Monaco.
+    import json as _j
+    parsed = _j.loads(body["mapping"])
+    assert isinstance(parsed, dict)
+    assert "classes" in parsed or "source_name" in parsed
+
+
+def test_fix_with_ai_rejects_invalid_json(client, monkeypatch, repo_root):
+    """If the editor buffer isn't valid JSON, we fail fast — no point
+    burning an LLM call on something even the parser can't handle."""
+    monkeypatch.setenv("OCSF_LLM_PROVIDER", "fixture")
+    monkeypatch.setenv(
+        "OCSF_LLM_FIXTURE_DIR", str(repo_root / "tests" / "fixtures" / "llm"),
+    )
+    monkeypatch.setenv("OCSF_LLM_FIXTURE_SOURCE", "cloudtrail_fix")
+
+    r = client.post(
+        "/sources/cloudtrail/fix-with-ai",
+        data={"content": "{not valid json"},
+    )
+    assert r.status_code == 400
+    body = r.json()
+    assert body["ok"] is False
+    assert "invalid JSON" in body["error"]
+
+
+def test_fix_with_ai_returns_503_when_no_provider_configured(client, monkeypatch):
+    """Without a key (and no fixture pointer), the endpoint surfaces a
+    503 plus a clear setup hint instead of throwing — the UI shows it
+    as a friendly notice next to the button."""
+    monkeypatch.delenv("OCSF_LLM_PROVIDER", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    broken = (
+        '{"parser":"json",'
+        '"classes":{"authentication":{"mapping":{"class_uid":{"const":3002}}}}}'
+    )
+    r = client.post("/sources/cloudtrail/fix-with-ai", data={"content": broken})
+    assert r.status_code == 503
+    body = r.json()
+    assert body["ok"] is False
+    assert body["code"] == "no_provider"
+    assert "ANTHROPIC_API_KEY" in body["error"] or "OPENAI_API_KEY" in body["error"]
+
+
+def test_fix_with_ai_404_for_unknown_source(client):
+    r = client.post(
+        "/sources/totally_made_up/fix-with-ai", data={"content": "{}"},
+    )
+    assert r.status_code == 404
+
+
+def test_fix_with_ai_rejects_clean_mapping(client, monkeypatch, repo_root):
+    """Nothing-to-fix path: if the user clicks the button while the
+    current buffer already lints clean, return a clear message instead
+    of burning an LLM call."""
+    monkeypatch.setenv("OCSF_LLM_PROVIDER", "fixture")
+    monkeypatch.setenv(
+        "OCSF_LLM_FIXTURE_DIR", str(repo_root / "tests" / "fixtures" / "llm"),
+    )
+    monkeypatch.setenv("OCSF_LLM_FIXTURE_SOURCE", "cloudtrail_fix")
+
+    import json as _j
+    current = (repo_root / "mappings" / "cloudtrail.json").read_text()
+    r = client.post("/sources/cloudtrail/fix-with-ai", data={"content": current})
+    assert r.status_code == 400
+    body = r.json()
+    assert "Nothing to fix" in body["error"]
+
+
+# ---------------------------------------------------------------------------
 # Step 2: Validation tab
 # ---------------------------------------------------------------------------
 

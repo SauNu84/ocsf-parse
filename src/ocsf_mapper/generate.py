@@ -218,6 +218,111 @@ def generate(
 
 
 # ---------------------------------------------------------------------------
+# fix mode — repair an existing mapping that fails lint
+# ---------------------------------------------------------------------------
+
+
+def prompt_fix(
+    current: dict,
+    errors: list[str],
+    sample_lines: list[str],
+    schema: Schema,
+) -> str:
+    """Build the LLM prompt for the Mapping-tab 'Fix with AI' flow.
+
+    Smaller than the from-scratch generate prompt — the LLM already has
+    a working skeleton; it only needs to fix the specific errors. We
+    include the schema context for the classes the mapping targets
+    (filtered to required + recommended attributes, the most common
+    fix surface) plus a few sample log lines for path verification.
+    """
+    classes = list((current.get("classes") or {}).keys())
+    parts: list[str] = [
+        "You are fixing a failing OCSF mapping config.\n",
+        "\n=== CURRENT MAPPING (broken) ===\n",
+        json.dumps(current, indent=2),
+        "\n\n=== LINTER ERRORS (against the pinned sample) ===\n",
+    ]
+    for e in errors[:30]:
+        parts.append(f"  - {e}\n")
+    if len(errors) > 30:
+        parts.append(f"  …and {len(errors) - 30} more error(s) elided\n")
+
+    if sample_lines:
+        parts.append("\n=== SAMPLE LOG LINES (first 5) ===\n")
+        for s in sample_lines[:5]:
+            parts.append(s + "\n")
+
+    if classes:
+        parts.append("\n=== OCSF SCHEMA CONTEXT (required + recommended attrs only) ===\n")
+        for cls in classes:
+            try:
+                full = schema.load_class(cls)
+            except Exception:
+                continue
+            parts.append(f"\n--- class: {cls} ---\n")
+            parts.append(json.dumps({
+                "constraints": full.get("constraints", {}),
+                "attributes": {
+                    k: {
+                        "requirement": v.get("requirement"),
+                        "group": v.get("group"),
+                        "enum": v.get("enum"),
+                        "type": v.get("type"),
+                        "description": (v.get("description") or "")[:160],
+                    }
+                    for k, v in full.get("attributes", {}).items()
+                    if not k.startswith("$")
+                    and v.get("requirement") in ("required", "recommended")
+                },
+            }, indent=2))
+            parts.append("\n")
+
+    parts.append("""
+TASK: Return the FIXED mapping JSON. Preserve all valid fields and ops
+from the current mapping; ONLY add/change what's needed to satisfy the
+linter errors above. Do not rewrite working sections.
+
+Available <op> forms (executed by apply.py):
+  {"const": <any>}, {"path": "$.dotted.path"}, {"group": "<regex group>"},
+  {"lookup": "<expr>", "table": {...}, "default": <any>, "prefix_match": false},
+  {"time": "<expr>", "format": "iso8601"|"epoch_ms"|"epoch_s"|"strptime:%Y-..."},
+  {"range": "<expr>", "ranges": [[low,high,value],...], "default": <any>},
+  {"expr": "class_uid * 100 + activity_id"}, {"int": "..."}, {"bool": "..."},
+  {"raw": true}, {"for_each": "<expr>", "as": "x", "map": {...}}
+
+OUTPUT: emit ONLY the JSON config, no commentary, no code fences. JSON.
+""")
+    return "".join(parts)
+
+
+def fix_mapping(
+    current: dict,
+    errors: list[str],
+    sample_lines: list[str],
+    *,
+    provider: Optional[LLMProvider] = None,
+    schema: Optional[Schema] = None,
+) -> dict:
+    """Ask the LLM to repair a broken mapping.
+
+    ``current`` is the user's in-progress mapping (must be valid JSON).
+    ``errors`` is the list of lint errors from a recent save attempt.
+    ``sample_lines`` is the first few raw lines of the pinned sample —
+    helps the LLM verify field paths exist in the input.
+
+    Returns the repaired mapping as a dict. The web layer is expected
+    to re-lint the result before promoting it; this function makes no
+    guarantee about correctness, only that the response is valid JSON.
+    """
+    schema = schema or Schema()
+    provider = provider or get_provider()
+    prompt = prompt_fix(current, errors, sample_lines, schema)
+    raw = provider.complete(prompt)
+    return json.loads(_strip_codefence(raw))
+
+
+# ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
 
