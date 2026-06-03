@@ -1,53 +1,290 @@
 {% extends "base.html" %}
 {% block title %}ocsf-mapper — catalog{% endblock %}
 {% block content %}
-<section class="hero">
+<section class="home-hero">
   <h1>Log sources mapped to OCSF</h1>
-  <p class="summary">
-    {{ totals.total }} sources •
-    {{ totals.ok }} lint-clean •
-    {% for p, n in totals.by_priority.items() %}
-      <span class="badge pri-{{ p }}">{{ n }} {{ p }}</span>
-    {% endfor %}
+  <p class="lede">
+    Pick a category to browse, or search by name / vendor. Click any card
+    to see the mapping, sample, validation, and live tail.
   </p>
+  <div class="kpis">
+    <div class="kpi"><span class="kpi-n">{{ totals.total }}</span><span class="kpi-l">sources</span></div>
+    <div class="kpi"><span class="kpi-n">{{ totals.category_count }}/8</span><span class="kpi-l">OCSF categories</span></div>
+    <div class="kpi"><span class="kpi-n">{{ totals.class_count }}</span><span class="kpi-l">classes</span></div>
+    <div class="kpi"><span class="kpi-n {% if totals.fail %}kpi-bad{% else %}kpi-good{% endif %}">{{ totals.ok }}/{{ totals.total }}</span><span class="kpi-l">lint clean</span></div>
+  </div>
 </section>
 
-<section class="card-grid">
-  {% for r in rows %}
-  <a class="card" href="/sources/{{ r.source }}">
-    <div class="card-head">
-      <span class="display">{{ r.display_name }}</span>
-      <span class="badge pri-{{ r.priority }}">{{ r.priority }}</span>
-    </div>
-    <div class="card-body">
-      <div class="vendor">{{ r.vendor }}</div>
-      <div class="ocsf">
-        <span class="cat">{{ r.ocsf.category_name }}</span>
-        <span class="sep">›</span>
-        <span class="cls">{{ r.ocsf.class_name }}</span>
-        <span class="uid">({{ r.ocsf.class_uid }})</span>
+<section class="home-layout" data-active-cat="" data-active-cls="">
+  <aside class="rail">
+    <div class="rail-head">Browse by OCSF</div>
+    <ul class="tree">
+      <li>
+        <button type="button" class="tree-all is-active" data-filter-cat="">
+          All sources <span class="tree-count">{{ totals.total }}</span>
+        </button>
+      </li>
+      {% for cat in tree %}
+      <li class="tree-node" data-cat-slug="{{ cat.slug }}">
+        <div class="tree-row">
+          <button type="button" class="tree-toggle" aria-expanded="false" aria-label="Toggle">
+            <span class="caret">▸</span>
+          </button>
+          <button type="button" class="tree-cat" data-filter-cat="{{ cat.slug }}">
+            <span class="tree-cat-name">{{ cat.category }}</span>
+            <span class="tree-count">{{ cat.count }}</span>
+          </button>
+        </div>
+        <ul class="tree-children" hidden>
+          {% for cls in cat.classes %}
+          <li>
+            <button type="button" class="tree-cls" data-filter-cat="{{ cat.slug }}" data-filter-cls="{{ cls.slug }}">
+              <span class="tree-cls-name">{{ cls.class_name }}</span>
+              <span class="tree-count">{{ cls.count }}</span>
+            </button>
+          </li>
+          {% endfor %}
+        </ul>
+      </li>
+      {% endfor %}
+    </ul>
+  </aside>
+
+  <div class="pane">
+    <div class="pane-controls">
+      <input
+        type="search"
+        class="search-box"
+        id="home-search"
+        placeholder="Search sources by name, vendor, or description…"
+        autocomplete="off">
+      <div class="pane-status">
+        <span id="filter-summary">All sources</span>
+        <span class="dot">·</span>
+        <span><span id="result-count">{{ totals.total }}</span> shown</span>
       </div>
-      <div class="desc">{{ r.description }}</div>
     </div>
-    {% if r.coverage %}
-    <div class="card-coverage">
-      <span class="bar" title="required: {{ r.coverage.required }}/{{ r.coverage.required_total }} • recommended: {{ r.coverage.recommended }}/{{ r.coverage.recommended_total }}">
-        {% set req_pct = (r.coverage.required / r.coverage.required_total * 100) if r.coverage.required_total else 100 %}
-        {% set rec_pct = (r.coverage.recommended / r.coverage.recommended_total * 100) if r.coverage.recommended_total else 0 %}
-        <span class="bar-req" style="width: {{ req_pct }}%"></span>
-        <span class="bar-rec" style="width: {{ rec_pct }}%"></span>
-      </span>
-      <span class="bar-label">{{ "%.0f"|format(r.coverage.score * 100) }}%</span>
+
+    <section class="card-grid">
+      {% for r in rows %}
+      <a class="card"
+         href="/sources/{{ r.source }}"
+         data-cat-slug="{{ r.cat_slug }}"
+         data-cls-slug="{{ r.cls_slug }}"
+         data-priority="{{ r.priority }}"
+         data-search="{{ (r.display_name ~ ' ' ~ r.vendor ~ ' ' ~ r.source ~ ' ' ~ r.description)|lower|e }}">
+        <div class="card-head">
+          <span class="display">{{ r.display_name }}</span>
+          <span class="badge pri-{{ r.priority }}">{{ r.priority }}</span>
+        </div>
+        <div class="card-body">
+          <div class="vendor">{{ r.vendor }}</div>
+          <div class="ocsf">
+            <span class="cat">{{ r.ocsf.category_name }}</span>
+            <span class="sep">›</span>
+            <span class="cls">{{ r.ocsf.class_name }}</span>
+            <span class="uid">({{ r.ocsf.class_uid }})</span>
+          </div>
+          <div class="desc">{{ r.description }}</div>
+        </div>
+        {% if r.coverage %}
+        <div class="card-coverage">
+          <span class="bar" title="required: {{ r.coverage.required }}/{{ r.coverage.required_total }} • recommended: {{ r.coverage.recommended }}/{{ r.coverage.recommended_total }}">
+            {% set req_pct = (r.coverage.required / r.coverage.required_total * 100) if r.coverage.required_total else 100 %}
+            {% set rec_pct = (r.coverage.recommended / r.coverage.recommended_total * 100) if r.coverage.recommended_total else 0 %}
+            <span class="bar-req" style="width: {{ req_pct }}%"></span>
+            <span class="bar-rec" style="width: {{ rec_pct }}%"></span>
+          </span>
+          <span class="bar-label">{{ "%.0f"|format(r.coverage.score * 100) }}%</span>
+        </div>
+        {% endif %}
+        <div class="card-foot">
+          <span class="status status-{{ r.lint_status }}">
+            {% if r.lint_status == "ok" %}✓{% elif r.lint_status == "fail" %}✗{% else %}·{% endif %}
+            {{ r.lint_status }}
+          </span>
+          <span class="count">{{ r.event_count }} sample event(s)</span>
+        </div>
+      </a>
+      {% endfor %}
+    </section>
+
+    <div class="pane-empty" id="pane-empty" hidden>
+      <p>No sources match the current filter.</p>
+      <button type="button" class="btn-secondary" id="clear-filter">Clear filter</button>
     </div>
-    {% endif %}
-    <div class="card-foot">
-      <span class="status status-{{ r.lint_status }}">
-        {% if r.lint_status == "ok" %}✓{% elif r.lint_status == "fail" %}✗{% else %}·{% endif %}
-        {{ r.lint_status }}
-      </span>
-      <span class="count">{{ r.event_count }} sample event(s)</span>
-    </div>
-  </a>
-  {% endfor %}
+  </div>
 </section>
+
+<script>
+(function () {
+  const layout    = document.querySelector('.home-layout');
+  const cards     = Array.from(document.querySelectorAll('.card-grid .card'));
+  const searchBox = document.getElementById('home-search');
+  const summary   = document.getElementById('filter-summary');
+  const resultN   = document.getElementById('result-count');
+  const empty     = document.getElementById('pane-empty');
+  const clearBtn  = document.getElementById('clear-filter');
+
+  const state = { cat: '', cls: '', q: '' };
+
+  // -- helpers ---------------------------------------------------------
+
+  function applyFilter() {
+    const q = state.q.trim().toLowerCase();
+    let shown = 0;
+    for (const card of cards) {
+      const matchCat = !state.cat || card.dataset.catSlug === state.cat;
+      const matchCls = !state.cls || card.dataset.clsSlug === state.cls;
+      const matchQ   = !q || card.dataset.search.indexOf(q) !== -1;
+      const show = matchCat && matchCls && matchQ;
+      card.style.display = show ? '' : 'none';
+      if (show) shown += 1;
+    }
+    resultN.textContent = shown;
+    empty.hidden = shown !== 0;
+
+    let label = 'All sources';
+    if (state.cat) {
+      const node = document.querySelector(`.tree-node[data-cat-slug="${state.cat}"] .tree-cat-name`);
+      label = node ? node.textContent : state.cat;
+      if (state.cls) {
+        const cls = document.querySelector(
+          `.tree-cls[data-filter-cat="${state.cat}"][data-filter-cls="${state.cls}"] .tree-cls-name`
+        );
+        if (cls) label += ' › ' + cls.textContent;
+      }
+    }
+    if (q) label += ` · matching "${state.q}"`;
+    summary.textContent = label;
+
+    document.querySelectorAll('.tree button.is-active').forEach(b => b.classList.remove('is-active'));
+    if (!state.cat && !state.cls) {
+      const all = document.querySelector('.tree-all');
+      if (all) all.classList.add('is-active');
+    } else if (state.cls) {
+      const btn = document.querySelector(
+        `.tree-cls[data-filter-cat="${state.cat}"][data-filter-cls="${state.cls}"]`
+      );
+      if (btn) btn.classList.add('is-active');
+    } else if (state.cat) {
+      const btn = document.querySelector(
+        `.tree-cat[data-filter-cat="${state.cat}"]`
+      );
+      if (btn) btn.classList.add('is-active');
+    }
+  }
+
+  function expandCategory(slug) {
+    const node = document.querySelector(`.tree-node[data-cat-slug="${slug}"]`);
+    if (!node) return;
+    const children = node.querySelector('.tree-children');
+    const toggle   = node.querySelector('.tree-toggle');
+    const caret    = node.querySelector('.caret');
+    if (children) children.hidden = false;
+    if (toggle)   toggle.setAttribute('aria-expanded', 'true');
+    if (caret)    caret.textContent = '▾';
+  }
+
+  function writeHash() {
+    const parts = [];
+    if (state.cat) parts.push('cat=' + encodeURIComponent(state.cat));
+    if (state.cls) parts.push('cls=' + encodeURIComponent(state.cls));
+    if (state.q)   parts.push('q='   + encodeURIComponent(state.q));
+    const next = parts.length ? '#' + parts.join('&') : '';
+    if (window.location.hash !== next) {
+      // Use replaceState so navigation back doesn't pile up filter history.
+      history.replaceState(null, '', window.location.pathname + next);
+    }
+  }
+
+  function readHash() {
+    const h = (window.location.hash || '').replace(/^#/, '');
+    if (!h) return;
+    for (const part of h.split('&')) {
+      const [k, v] = part.split('=').map(decodeURIComponent);
+      if (k === 'cat') state.cat = v || '';
+      if (k === 'cls') state.cls = v || '';
+      if (k === 'q')   state.q   = v || '';
+    }
+    if (state.q && searchBox) searchBox.value = state.q;
+    if (state.cat) expandCategory(state.cat);
+  }
+
+  // -- wiring ----------------------------------------------------------
+
+  document.querySelectorAll('.tree-toggle').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const node = btn.closest('.tree-node');
+      const children = node.querySelector('.tree-children');
+      const caret = btn.querySelector('.caret');
+      const open = !children.hidden;
+      children.hidden = open;
+      btn.setAttribute('aria-expanded', open ? 'false' : 'true');
+      if (caret) caret.textContent = open ? '▸' : '▾';
+    });
+  });
+
+  document.querySelectorAll('.tree-cat').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.cat = btn.dataset.filterCat || '';
+      state.cls = '';
+      expandCategory(state.cat);
+      applyFilter();
+      writeHash();
+    });
+  });
+
+  document.querySelectorAll('.tree-cls').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.cat = btn.dataset.filterCat || '';
+      state.cls = btn.dataset.filterCls || '';
+      expandCategory(state.cat);
+      applyFilter();
+      writeHash();
+    });
+  });
+
+  document.querySelectorAll('.tree-all').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.cat = '';
+      state.cls = '';
+      applyFilter();
+      writeHash();
+    });
+  });
+
+  if (searchBox) {
+    searchBox.addEventListener('input', e => {
+      state.q = e.target.value || '';
+      applyFilter();
+      writeHash();
+    });
+  }
+
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      state.cat = '';
+      state.cls = '';
+      state.q   = '';
+      if (searchBox) searchBox.value = '';
+      applyFilter();
+      writeHash();
+    });
+  }
+
+  window.addEventListener('hashchange', () => {
+    state.cat = ''; state.cls = ''; state.q = '';
+    if (searchBox) searchBox.value = '';
+    readHash();
+    applyFilter();
+  });
+
+  // -- init ------------------------------------------------------------
+
+  readHash();
+  applyFilter();
+})();
+</script>
 {% endblock %}

@@ -1,10 +1,11 @@
 {% if ok %}
 <div class="save-ok">
   ✓ Saved. Re-linted {{ events }} event(s) across class(es): {{ classes|join(', ') }}.
+  {% if schema_version %}<span class="hint">(OCSF {{ schema_version }})</span>{% endif %}
 </div>
 {% else %}
 <div class="save-error">
-  <strong>✗ Save rejected — mapping did not lint clean ({{ errors|length }} error{{ '' if errors|length == 1 else 's' }}):</strong>
+  <strong>✗ Save rejected — mapping did not lint clean ({{ errors|length }} error{{ '' if errors|length == 1 else 's' }}){% if schema_version %} against OCSF {{ schema_version }}{% endif %}:</strong>
   <ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
   <p class="hint">Your edits are still in the editor; fix the issues and try again.</p>
 </div>

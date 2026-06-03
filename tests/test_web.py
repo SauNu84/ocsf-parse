@@ -139,6 +139,39 @@ def test_save_404_for_unknown_source(client):
     assert r.status_code == 404
 
 
+def test_mapping_editor_lists_schema_version_options(client):
+    """The Mapping tab dropdown should list every available pinned schema
+    version (the current submodule plus any ocsf-schema-<v>/ worktrees)."""
+    r = client.get("/sources/cloudtrail/mapping")
+    assert r.status_code == 200
+    assert "schema-version-select" in r.text
+    # Default (current submodule) version.
+    assert "1.9.0-dev" in r.text
+    # Pinned alternates from scripts/setup_schema_versions.sh.
+    assert "1.8.0" in r.text
+
+
+def test_save_against_pinned_schema_version_reports_it(client):
+    """A rejection rendered while linting against a non-default schema
+    version names that version so the user knows which schema the gate ran."""
+    bad = "{not valid"
+    r = client.post(
+        "/sources/cloudtrail/save",
+        data={"content": bad, "schema_version": "1.8.0"},
+    )
+    assert r.status_code == 400
+    assert "OCSF 1.8.0" in r.text
+
+
+def test_save_against_missing_version_returns_clear_error(client):
+    r = client.post(
+        "/sources/cloudtrail/save",
+        data={"content": "{}", "schema_version": "99.99.99"},
+    )
+    assert r.status_code == 400
+    assert "setup_schema_versions.sh" in r.text
+
+
 # ---------------------------------------------------------------------------
 # Step 2: Validation tab
 # ---------------------------------------------------------------------------
@@ -193,6 +226,38 @@ def test_validation_tab_missing_sample(tmp_path):
 # ---------------------------------------------------------------------------
 # Step 3: Coverage bars on home + dedicated Coverage tab
 # ---------------------------------------------------------------------------
+
+
+def test_snippets_tab_renders(client):
+    """Snippets tab serves a partial with CLI / Python SDK / PySpark / Pandas
+    blocks templated with the actual mapping + sample paths."""
+    r = client.get("/sources/cloudtrail/snippets")
+    assert r.status_code == 200
+    body = r.text
+    # Each snippet header label.
+    for label in ("CLI", "Python (SDK)", "PySpark (UDF)", "Pandas"):
+        assert label in body, f"snippets partial missing {label!r}"
+    # Per-mapping templating: the cloudtrail paths land in the snippets.
+    assert "mappings/cloudtrail.json" in body
+    assert "samples/cloudtrail.jsonl" in body
+    # SDK call should be present in the Python block.
+    assert "apply_stream_with_class" in body
+    # Spark broadcast pattern in the PySpark block.
+    assert "sparkContext.broadcast" in body
+    # Copy button wiring.
+    assert "snippet-copy" in body
+
+
+def test_snippets_tab_404_for_unknown_source(client):
+    r = client.get("/sources/this_does_not_exist/snippets")
+    assert r.status_code == 404
+
+
+def test_source_page_lists_snippets_tab(client):
+    r = client.get("/sources/cloudtrail")
+    assert r.status_code == 200
+    assert "Snippets" in r.text
+    assert "/sources/cloudtrail/snippets" in r.text
 
 
 def test_homepage_includes_coverage_bars(client):

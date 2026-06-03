@@ -1,6 +1,17 @@
 <div class="mapping-tab">
   <div class="editor-toolbar">
     <span class="hint">Edit the mapping JSON. Save runs the linter against the pinned sample.</span>
+    <span class="editor-toolbar-spacer"></span>
+    <label class="schema-version-picker">
+      <span class="schema-version-label">Lint against OCSF</span>
+      <select id="schema-version-select">
+        {% for v in schema_versions %}
+        <option value="{{ '' if v.is_default else v.label }}"{% if v.is_default %} selected{% endif %}>
+          {{ v.label }}{% if v.is_default %} (current){% endif %}
+        </option>
+        {% endfor %}
+      </select>
+    </label>
     <button class="btn-primary" onclick="ocsfSaveMapping('{{ name }}')">Save</button>
   </div>
   <div id="save-result" class="save-result"></div>
@@ -36,6 +47,8 @@
       var content = window.__ocsfEditor.getValue();
       var fd = new FormData();
       fd.append('content', content);
+      var pick = document.getElementById('schema-version-select');
+      if (pick) fd.append('schema_version', pick.value || '');
       fetch('/sources/' + encodeURIComponent(name) + '/save', { method: 'POST', body: fd })
         .then(function(r) { return r.text().then(function(t) { return { html: t, ok: r.ok }; }); })
         .then(function(res) {

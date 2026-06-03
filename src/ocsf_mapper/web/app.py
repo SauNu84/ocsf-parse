@@ -31,13 +31,85 @@ from ocsf_mapper.catalog import join_catalog
 from ocsf_mapper.coverage import coverage, summary as coverage_summary
 from ocsf_mapper.lint import lint_one
 from ocsf_mapper.registry import list_mappings
-from ocsf_mapper.schema import Schema
+from ocsf_mapper.schema import Schema, list_available_versions
 from ocsf_mapper.stream import tail_file
 from ocsf_mapper.validate import validate
 
 
 _HERE = Path(__file__).resolve().parent
 _PRIORITY_RANK = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+
+
+def _slug(s: str) -> str:
+    """URL-safe lowercase token derived from a human label.
+
+    Used for tree-node hashes and card filter attributes — needs to be
+    stable across page renders, not pretty.
+    """
+    import re as _re
+    return _re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
+
+
+def _build_snippets(name: str, cfg: dict, sample_filename: Optional[str]) -> list[dict]:
+    """Per-mapping copy-paste code blocks for the source page's Snippets tab.
+
+    Each block is templated with the actual mapping path + pinned sample so
+    a user can paste straight into their shell / notebook / cluster.
+    """
+    import textwrap
+    mapping_path = f"mappings/{name}.json"
+    sample_path  = f"samples/{sample_filename}" if sample_filename else f"samples/{name}.log"
+
+    cli = (
+        f"ocsf-mapper apply {mapping_path} \\\n"
+        f"    {sample_path} out.jsonl"
+    )
+
+    python_sdk = textwrap.dedent(f"""\
+        import json
+        from ocsf_mapper.apply import apply_stream_with_class
+
+        config = json.loads(open("{mapping_path}").read())
+        with open("{sample_path}") as f:
+            for event, cls in apply_stream_with_class(config, f):
+                print(cls, event)""")
+
+    pyspark = textwrap.dedent(f"""\
+        # See examples/spark/cloudtrail_udf.py for a full runnable version.
+        from pyspark.sql import SparkSession, functions as F
+        from pyspark.sql.types import StringType
+        import json
+
+        spark = SparkSession.builder.appName("ocsf-{name}").getOrCreate()
+        config = json.loads(open("{mapping_path}").read())
+        config_bc = spark.sparkContext.broadcast(config)
+
+        def to_ocsf(raw):
+            from ocsf_mapper.apply import apply
+            e = apply(config_bc.value, raw)
+            return json.dumps(e) if e else None
+
+        to_ocsf_udf = F.udf(to_ocsf, StringType())
+        (spark.read.text("s3://raw-logs/{name}/")
+             .withColumn("ocsf", to_ocsf_udf(F.col("value")))
+             .write.partitionBy("class_uid")
+             .parquet("s3://ocsf-lake/{name}/"))""")
+
+    pandas = textwrap.dedent(f"""\
+        # Row-wise apply is fine up to ~100K rows; use PySpark above for bigger.
+        import json, pandas as pd
+        from ocsf_mapper.apply import apply
+
+        config = json.loads(open("{mapping_path}").read())
+        df = pd.read_json("{sample_path}", lines=True)
+        df["ocsf"] = df.apply(lambda r: apply(config, r.to_json()), axis=1)""")
+
+    return [
+        {"title": "CLI",                          "lang": "bash",   "code": cli},
+        {"title": "Python (SDK)",                 "lang": "python", "code": python_sdk},
+        {"title": "PySpark (UDF)",                "lang": "python", "code": pyspark},
+        {"title": "Pandas (batch, ≤100K rows)",  "lang": "python", "code": pandas},
+    ]
 
 
 def create_app(root: Optional[Path | str] = None) -> FastAPI:
@@ -48,11 +120,31 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
     catalog_path = root_path / "catalog.json"
 
     templates = Jinja2Templates(directory=str(_HERE / "templates"))
+    # Cache-bust /static/main.css with its mtime so a stale browser cache
+    # doesn't mask a CSS edit. Computed once at startup; rebooting the
+    # server picks up new edits.
+    _css = _HERE / "static" / "main.css"
+    templates.env.globals["asset_v"] = (
+        str(int(_css.stat().st_mtime)) if _css.exists() else "1"
+    )
     app = FastAPI(title="ocsf-mapper", docs_url=None, redoc_url=None)
     app.mount("/static", StaticFiles(directory=str(_HERE / "static")), name="static")
 
-    # Cache schema across requests (it's read-only, slow to load fresh each time).
+    # Cache schemas across requests (read-only, file-bound). The default
+    # schema (current submodule) is always loaded. Pinned alternates from
+    # list_available_versions() load lazily on first per-version request.
     schema = Schema()
+    _schema_cache: dict[str, Schema] = {}
+
+    def _get_schema(version: Optional[str] = None) -> Schema:
+        if not version:
+            return schema
+        cached = _schema_cache.get(version)
+        if cached is not None:
+            return cached
+        s = Schema(version=version)
+        _schema_cache[version] = s
+        return s
 
     # ----- helpers --------------------------------------------------------
 
@@ -79,6 +171,7 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
                         lint_status = "ok" if not errs else "fail"
             except Exception:
                 lint_status = "fail"
+        ocsf = entry.get("ocsf", {})
         return {
             **entry,
             "lint_status": lint_status,
@@ -86,6 +179,8 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
             "has_mapping": entry["status"] == "mapped",
             "sample_path": sample_path,
             "coverage": cov_summary,
+            "cat_slug": _slug(ocsf.get("category_name", "")),
+            "cls_slug": _slug(ocsf.get("class_name", "")),
         }
 
     def _sorted_catalog_rows() -> list[dict]:
@@ -113,7 +208,7 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
         return templates.TemplateResponse(
             request,
             "home.html",
-            {"rows": rows, "totals": _summarize(rows)},
+            {"rows": rows, "totals": _summarize(rows), "tree": _build_tree(rows)},
         )
 
     @app.get("/new", response_class=HTMLResponse)
@@ -438,6 +533,19 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
             },
         )
 
+    @app.get("/sources/{name}/snippets", response_class=HTMLResponse)
+    def source_snippets(name: str, request: Request) -> HTMLResponse:
+        cfg = _mapping_or_404(name)
+        entry = next((e for e in _sorted_catalog_rows() if e["source"] == name), None)
+        sample_filename = (
+            Path(entry["sample_path"]).name if entry and entry.get("sample_path") else None
+        )
+        return templates.TemplateResponse(
+            request,
+            "partials/snippets.html",
+            {"name": name, "snippets": _build_snippets(name, cfg, sample_filename)},
+        )
+
     @app.get("/sources/{name}/validation", response_class=HTMLResponse)
     def source_validation(name: str, request: Request) -> HTMLResponse:
         cfg = _mapping_or_404(name)
@@ -510,11 +618,17 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
             {
                 "name": name,
                 "mapping_json": json.dumps(cfg, indent=2),
+                "schema_versions": list_available_versions(),
             },
         )
 
     @app.post("/sources/{name}/save", response_class=HTMLResponse)
-    def source_save(name: str, request: Request, content: str = Form(...)) -> HTMLResponse:
+    def source_save(
+        name: str,
+        request: Request,
+        content: str = Form(...),
+        schema_version: str = Form(""),
+    ) -> HTMLResponse:
         from ocsf_mapper.audit import log_edit
         path = mappings_dir / f"{name}.json"
         if not path.exists():
@@ -522,6 +636,17 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
 
         bytes_before = path.stat().st_size
         bytes_after = len(content.encode("utf-8"))
+
+        try:
+            target_schema = _get_schema(schema_version or None)
+        except FileNotFoundError as e:
+            errs = [str(e)]
+            return templates.TemplateResponse(
+                request,
+                "partials/save_result.html",
+                {"ok": False, "errors": errs, "schema_version": schema_version},
+                status_code=400,
+            )
 
         # 1. JSON syntax check
         try:
@@ -534,7 +659,7 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
             return templates.TemplateResponse(
                 request,
                 "partials/save_result.html",
-                {"ok": False, "errors": errs},
+                {"ok": False, "errors": errs, "schema_version": target_schema.version()},
                 status_code=400,
             )
 
@@ -544,7 +669,7 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
         tmp_path = path.with_suffix(".json.tmp")
         tmp_path.write_text(json.dumps(parsed, indent=2) + "\n")
         try:
-            result = lint_one(tmp_path, sample_path, schema)
+            result = lint_one(tmp_path, sample_path, target_schema)
             if result["status"] != "OK":
                 errs = result["errors"] or [result["status"]]
                 log_edit(root_path, mapping=name, action="update",
@@ -553,7 +678,7 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
                 return templates.TemplateResponse(
                     request,
                     "partials/save_result.html",
-                    {"ok": False, "errors": errs},
+                    {"ok": False, "errors": errs, "schema_version": target_schema.version()},
                     status_code=400,
                 )
             tmp_path.replace(path)
@@ -568,7 +693,8 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
             "partials/save_result.html",
             {"ok": True, "errors": [],
              "events": result.get("events", 0),
-             "classes": result.get("classes", [])},
+             "classes": result.get("classes", []),
+             "schema_version": target_schema.version()},
         )
 
     def _find_sample_path(name: str) -> Optional[Path]:
@@ -582,9 +708,11 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
     @app.get("/audit", response_class=HTMLResponse)
     def audit_view(request: Request) -> HTMLResponse:
         from ocsf_mapper.audit import read_audit
-        events = read_audit(root_path, limit=500)
+        cap = 500
+        events = read_audit(root_path, limit=cap)
         return templates.TemplateResponse(
-            request, "audit.html", {"events": events, "n": len(events)},
+            request, "audit.html",
+            {"events": events, "n": len(events), "cap": cap},
         )
 
     # -- Prometheus /metrics ----------------------------------------------
@@ -647,4 +775,54 @@ def _summarize(rows: list[dict]) -> dict:
         by_pri[r["priority"]] = by_pri.get(r["priority"], 0) + 1
         cn = r["ocsf"]["category_name"]
         by_cat[cn] = by_cat.get(cn, 0) + 1
-    return {"total": total, "ok": ok, "fail": fail, "by_priority": by_pri, "by_category": by_cat}
+    return {
+        "total": total, "ok": ok, "fail": fail,
+        "by_priority": by_pri, "by_category": by_cat,
+        "class_count": len({r["ocsf"]["class_name"] for r in rows}),
+        "category_count": len(by_cat),
+    }
+
+
+def _build_tree(rows: list[dict]) -> list[dict]:
+    """Group rows into OCSF category → class nodes for the homepage rail.
+
+    Ordered by OCSF category_uid (derived from class_uid // 1000) so the
+    tree renders in canonical schema order: System Activity (1), Findings (2),
+    IAM (3), Network (4), Discovery (5), Application Activity (6),
+    Remediation (7), Unmanned Systems (8).
+    """
+    # Key by category_name so OCSF extension classes (e.g. windows_registry
+    # at class_uid 201xxx) fold into their parent category rather than
+    # spawning a separate node.
+    by_cat: dict[str, dict] = {}
+    for r in rows:
+        ocsf = r["ocsf"]
+        try:
+            cls_uid = int(ocsf["class_uid"])
+        except (KeyError, ValueError, TypeError):
+            continue
+        cat_uid = cls_uid // 1000
+        cat_name = ocsf.get("category_name", "Uncategorised")
+        cls_name = ocsf.get("class_name", "Unknown")
+        node = by_cat.setdefault(cat_name, {
+            "category": cat_name,
+            "category_uid": cat_uid,
+            "slug": _slug(cat_name),
+            "count": 0,
+            "classes": {},
+        })
+        node["category_uid"] = min(node["category_uid"], cat_uid)
+        node["count"] += 1
+        cls = node["classes"].setdefault(cls_name, {
+            "class_name": cls_name,
+            "class_uid": cls_uid,
+            "slug": _slug(cls_name),
+            "count": 0,
+        })
+        cls["count"] += 1
+
+    out = []
+    for node in sorted(by_cat.values(), key=lambda n: n["category_uid"]):
+        node["classes"] = sorted(node["classes"].values(), key=lambda c: c["class_uid"])
+        out.append(node)
+    return out

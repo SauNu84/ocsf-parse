@@ -6,7 +6,8 @@
   <h1>Mapping edit audit log</h1>
   <p class="hint">
     Append-only log of every mapping change made through the web UI.
-    Newest first; capped at the most recent {{ n }} events. Backed by
+    Newest first; showing {{ n }} event{{ '' if n == 1 else 's' }}
+    (capped at {{ cap }}). Backed by
     <code>audit/mapping_edits.ndjson</code>. Rotate / archive at the
     OS level if needed.
   </p>
