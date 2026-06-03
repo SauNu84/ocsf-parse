@@ -22,7 +22,7 @@ can verify it end-to-end without a cluster.
 ### Prerequisites
 
 ```bash
-pip install 'pyspark>=3.5' 'ocsf-mapper>=0.2.0'
+pip install 'pyspark>=3.5' 'ocsf-mapper>=0.4.0'
 # Or from the repo root: pip install -e '.[parquet,fast]' && pip install pyspark
 ```
 
@@ -49,7 +49,7 @@ Adapt the args for S3 / HDFS paths:
 spark-submit \
     --master yarn \
     --deploy-mode cluster \
-    --py-files dist/ocsf_mapper-0.3.0-py3-none-any.whl \
+    --py-files dist/ocsf_mapper-0.4.4-py3-none-any.whl \
     examples/spark/cloudtrail_udf.py \
     --mapping s3://config-bucket/mappings/cloudtrail.json \
     --input   s3://raw-logs/cloudtrail/year=2026/ \

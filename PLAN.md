@@ -4,11 +4,15 @@
 > Framework](https://github.com/ocsf/ocsf-schema). One Python engine, JSON mapping
 > configs per source, LLM-assisted onboarding, validating UI.
 
-> **Implementation status:** Phase A, B, C complete; Phase D in progress.
-> 38 reference mappings live, ~272 tests passing on Python 3.9 / 3.11 / 3.12.
-> OCSF coverage: **8/8 categories** as of 2026-06-02.
-> See [`CHANGELOG.md`](./CHANGELOG.md) for the commit timeline. Status
-> tags on each phase below; original design rationale preserved verbatim.
+> **Implementation status:** Phases A / B / C / D all complete. v0.4 release
+> series (v0.4.0 → v0.4.4, 2026-06-03) added the AI authoring loop, OCSF schema
+> versioning, a two-pane homepage, and 5 new mappings.
+>
+> **Current state:** 43 reference mappings, 346 tests passing on Python
+> 3.9 / 3.11 / 3.12, OCSF coverage **8/8 categories** (20 classes). Latest
+> release: **v0.4.4** on PyPI + GHCR.
+> See [`CHANGELOG.md`](./CHANGELOG.md) for the commit timeline. Status tags
+> on each phase below; original design rationale preserved verbatim.
 
 ## 1. Vision
 
@@ -359,12 +363,19 @@ agreed on next, organised by leverage. Each bucket is independent;
 work them in whatever order delivers the most value for the actual
 deployment.
 
-### Bucket B — more mappings (started in v0.3 post-tag)
+### Bucket B — more mappings (started in v0.3 post-tag, extended in v0.4)
 
-38 mappings cover 20 OCSF classes / **8 of 8 OCSF categories**. Bucket
+43 mappings cover 20 OCSF classes / **8 of 8 OCSF categories**. Bucket
 B is complete; every OCSF top-level category has at least one
 mapping. Real-world SOC ingest will still want more SaaS audit logs
 and more vendor formats — those go in v0.4+ on demand.
+
+v0.4 batch (commit `651f746`, 2026-06-03) added 5 high-value SOC sources:
+- [x] **`duo_security`** — Duo Authentication Log v2 → authentication (3002)
+- [x] **`aws_guardduty`** — AWS GuardDuty findings → detection_finding (2004)
+- [x] **`microsoft_defender`** — Defender for Endpoint alerts → detection_finding (2004)
+- [x] **`hashicorp_vault`** — Vault audit log → api_activity (6003)
+- [x] **`pagerduty`** — PagerDuty incident webhooks → remediation_activity (7001) — doubled the thinnest category
 
 - [x] **`github_audit`** — GitHub Enterprise audit log → authentication
       (logins) + api_activity (everything else)
@@ -393,6 +404,76 @@ and more vendor formats — those go in v0.4+ on demand.
       (FAA-mandated drone identification). class_uid 8001.
 
 **Bucket B is now complete. All 8 OCSF top-level categories covered.**
+
+### Bucket D — AI authoring loop ✅ DONE (v0.4 series)
+
+Three AI-assisted authoring flows in the Mapping-tab editor, all
+sharing the same provider abstraction (Anthropic / OpenAI / Fixture)
+already in place from Phase C's `/new` wizard. Each replaces the
+Monaco buffer with an LLM suggestion; **Save is always the final
+linter gate** — AI never writes to disk directly.
+
+- [x] **✨ Fix with AI** (`v0.4.2`, commit `201509b`) — enables after
+      a failed save. Sends the current mapping + lint errors + first 5
+      sample events to the configured LLM, drops the repaired JSON
+      into Monaco. Highest-ROI flow: addresses the "I edited it, got 7
+      errors, don't know which path is wrong" loop the audit log kept
+      catching.
+- [x] **♻ Regenerate** (`v0.4.3`, commit `64685d0`) — always enabled.
+      Discards the current mapping and re-runs `generate.generate()`
+      (the same two-phase flow as `/new`), just bound to an existing
+      source's pinned sample. Useful when the mapping is past saving.
+- [x] **💡 Suggest improvements** (`v0.4.4`, commit `0fdfa9d`) —
+      coverage-aware. Runs `coverage(cfg, schema)` to find missing
+      required + recommended attrs; short-circuits with "Nothing to
+      improve" when coverage is already 100%. Otherwise asks the LLM
+      to PRESERVE existing field mappings and ADD ops for the missing
+      attrs only.
+
+Shared infrastructure:
+
+- **In-memory LRU cache** (`v0.4.3`, commit `c672f1a`) — identical
+  inputs to any of the three endpoints return the previous LLM result
+  instantly, no second API call. Key: `(op, source, content_hash,
+  schema_version)`. Cap 16, process-lifetime. Wipes on restart.
+- **Coverage delta indicator** (`v0.4.4`, commit `ea5783e`) — every
+  AI response carries `before_score` + `after_score`, rendered as
+  "coverage X% → Y% ↑/↓/·" in the AI notice. Tells users whether the
+  AI suggestion actually helped.
+- **No-provider 503** — all three endpoints surface a friendly setup
+  hint (*"set ANTHROPIC_API_KEY or OPENAI_API_KEY"*) instead of
+  crashing when no key is configured. The Fixture provider lets
+  tests and offline-dev work without burning real tokens.
+
+### Bucket E — UI redesign ✅ DONE (v0.4 series)
+
+Replaced the flat 38-card homepage with a navigable layout and added
+per-source authoring affordances.
+
+- [x] **Homepage two-pane layout** (`v0.4.0`, commit `4ee65be`) —
+      sticky left rail with collapsible OCSF category tree
+      (8 categories → 20 classes) + per-node counts; right pane has
+      live search + filtered card grid. Filter state syncs to URL
+      hash (`#cat=…&cls=…&q=…`) for shareable views. KPI strip at top.
+- [x] **Snippets tab** (`v0.4.0`, commit `4ee65be`) — per-mapping
+      CLI / Python SDK / PySpark UDF / Pandas code blocks templated
+      with the actual mapping path + pinned sample. Copy buttons.
+      Turns each source page into a launchpad.
+- [x] **OCSF schema version selector** (`v0.4.0`, commits `bae55cc` +
+      `4ee65be`) — Mapping-tab dropdown picks the schema version the
+      linter runs against (default / 1.8.0 / 1.7.0). Pinned alternates
+      materialize as git worktrees of the submodule via
+      `scripts/setup_schema_versions.sh`; auto-discovered by
+      `list_available_versions()`.
+- [x] **Monaco loading spinner + prefetch** (`v0.4.3` + `v0.4.4`,
+      commits `2b25af6` + `65b2550`) — placeholder while the editor's
+      JS bundle loads from CDN; prefetch hints on the source page so
+      the bundle is in the browser cache by the time the user clicks
+      Mapping. Near-instant paint on warm-cache visits.
+- [x] **Audit copy fix + cache-bust** (commits `f8c91f4` etc.) — lint
+      errors coalesce identical per-event failures (33 KB → 700 B per
+      audit record); CSS cache-bust via `asset_v` query string kills
+      the post-edit hard-refresh dance.
 
 ### Bucket C — production engineering ✅ DONE
 

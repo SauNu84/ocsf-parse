@@ -57,7 +57,7 @@ scripts/setup_schema_versions.sh                 # pin OCSF 1.7.0 + 1.8.0 worktr
 ### From Docker (zero-install)
 
 ```bash
-docker run --rm -p 8000:8000 ghcr.io/saunu84/ocsf-mapper:0.4.1
+docker run --rm -p 8000:8000 ghcr.io/saunu84/ocsf-mapper:0.4.4
 # → web UI on http://127.0.0.1:8000
 
 # or pin to "latest" tag:
@@ -289,7 +289,7 @@ src/ocsf_mapper/
 scripts/
   generate_samples.py    Deterministic sample-data generator
   lint_mappings.py       Thin wrapper around python -m ocsf_mapper.lint
-tests/                   pytest suite (~225 tests, 90% coverage)
+tests/                   pytest suite (346 tests, 90% coverage)
 ```
 
 ## Adding a new log source
@@ -304,49 +304,49 @@ tests/                   pytest suite (~225 tests, 90% coverage)
 
 ## Status
 
-- [x] **Phase A — SDK**: pip-installable package, CLI (11 subcommands —
+All four foundation phases shipped; v0.4 release series (v0.4.0 → v0.4.4,
+2026-06-03) added the AI authoring loop, OCSF schema versioning, a
+two-pane homepage, and 5 new mappings.
+
+- [x] **Phase A — SDK**: pip-installable package, CLI (12 subcommands —
       `apply`, `validate`, `list`, `catalog`, `lint`, `schema-diff`,
-      `benchmark`, `diff`, `generate`, `tail`, `serve`), 29 reference
-      mappings, master-data catalog, GitHub Actions CI on Python 3.9 /
-      3.11 / 3.12.
-- [x] **Phase B — Web UI**: homepage card grid (with priority badges and
-      coverage bars), per-source page with 5 HTMX-swappable tabs
-      (Sample, Output, Mapping editor with Monaco, Validation, Coverage),
-      new-source wizard at `/new`.
-- [x] **Phase C — LLM-assisted onboarding**: Anthropic / OpenAI / fixture
-      provider abstraction, two-phase generator (`suggest_classes` →
-      `draft_mapping`), `ocsf-mapper generate` CLI, UI wizard with
-      server-side lint gate.
-- [~] **Phase D — Polish**:
-  - [x] Per-mapping coverage scoring (required + recommended attrs)
-  - [x] Partitioned Parquet sink for AWS Security Lake
-        (`<root>/<class_uid>/eventDay=YYYYMMDD/*.parquet`)
-  - [x] `tail -f` live streaming mode (`ocsf-mapper tail`)
-  - [x] Schema-bump diff (`ocsf-mapper schema-diff` joins schema deltas
-        against mappings to surface silent breakage)
-  - [x] PII redaction layer (`apply ... --redact`; scrubs email / ipv4
-        / ssn / phone / jwt / Luhn-valid ccn)
-  - [x] WebSocket live-tail UI mode (Server-Sent Events from the Output
-        tab stream new OCSF events as the source file appends)
-  - [x] Mapping comparison (`ocsf-mapper diff <a.json> <b.json>`)
+      `benchmark`, `diff`, `generate`, `replay`, `tail`, `serve`), 43
+      reference mappings, master-data catalog, GitHub Actions CI on
+      Python 3.9 / 3.11 / 3.12.
+- [x] **Phase B — Web UI**: two-pane homepage (rail + tree + filter +
+      KPIs), per-source page with 6 HTMX-swappable tabs (Sample,
+      Output, Mapping with Monaco + AI assist, Validation, Coverage,
+      Snippets), new-source wizard at `/new`, audit log view.
+- [x] **Phase C — LLM-assisted onboarding**: Anthropic / OpenAI /
+      fixture provider abstraction, two-phase generator
+      (`suggest_classes` → `draft_mapping`), `ocsf-mapper generate`
+      CLI, UI wizard with server-side lint gate.
+- [x] **Phase D — Polish** (all subitems done): per-mapping coverage
+      scoring, Security Lake Parquet sink, `tail -f` live streaming
+      (CLI + SSE in UI), schema-bump diff, PII redaction, mapping
+      comparison.
 - [x] **Distribution (v0.3)**: PyPI publish workflow, Docker image
       pushed to GHCR, Spark UDF reference at `examples/spark/`,
       landing page deployed via GitHub Pages.
+- [x] **Bucket B — additional mappings** (v0.3 + v0.4): GitHub /
+      GitLab / Slack / K8s audit logs; CEF + LEEF generic parsers;
+      Windows-extension `registry_key_activity`; SOAR + drone
+      telemetry (closed OCSF categories 7 + 8); v0.4 batch added Duo,
+      GuardDuty, Defender, Vault, PagerDuty.
+- [x] **Bucket C — production engineering** (v0.3): Prometheus
+      `/metrics`, audit log of mapping edits, replay tool, provider
+      test mocks (~90% coverage), mapping versioning.
+- [x] **Bucket D — AI authoring loop** (v0.4 series): ✨ Fix-with-AI,
+      ♻ Regenerate, 💡 Suggest-improvements — all coverage-aware,
+      cached (LRU 16, lifetime-of-process), no-provider 503 with a
+      friendly setup hint instead of a crash.
+- [x] **Bucket E — UI redesign** (v0.4 series): two-pane homepage,
+      Snippets tab, OCSF schema version selector (1.7.0 / 1.8.0 /
+      1.9.0-dev pinned as git worktrees), Monaco loading spinner +
+      prefetch.
+- [ ] **Phase E — distributed runtimes** (deferred): Flink streaming
+      adapter, Vector / Fluentbit transpiler, Apache Beam adapter.
 
-### v0.4+ roadmap
-
-Detail in [`PLAN.md`](./PLAN.md) §3a.
-
-- **Bucket B — more mappings**: GitHub / GitLab / Slack / Kubernetes
-  audit logs; CEF / LEEF generic parsers; Windows-extension classes
-  (registry, etc); OCSF categories 7 (remediation) and 8 (unmanned
-  systems).
-- **Bucket C — production engineering**: Prometheus `/metrics`, audit
-  log of mapping edits, replay tool for backfilling new fields,
-  provider test coverage, mapping versioning.
-- **Phase E — distributed runtimes**: Flink streaming adapter, Vector
-  / Fluentbit transpiler, Apache Beam adapter.
-
-See [`CHANGELOG.md`](./CHANGELOG.md) for the per-feature commit timeline
+See [`CHANGELOG.md`](./CHANGELOG.md) for the per-version commit timeline
 and [`PLAN.md`](./PLAN.md) for the original architecture and design
-decisions.
+decisions, including per-bucket scope discussion.

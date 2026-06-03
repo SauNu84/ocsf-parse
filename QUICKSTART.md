@@ -9,12 +9,13 @@ No Python toolchain needed — uses the Docker image at every step.
 ## 30 seconds — see the catalog
 
 ```bash
-docker run --rm ghcr.io/saunu84/ocsf-mapper:0.3.0 list
+docker run --rm ghcr.io/saunu84/ocsf-mapper:0.4.4 list
 ```
 
 This prints a table of every reference mapping shipped with the image —
-38 sources across 8 OCSF categories, from Windows Event Log through
-CloudTrail to ASTM drone telemetry. No login, no signup, no setup.
+43 sources across 8 OCSF categories, from Windows Event Log through
+CloudTrail / Duo / Vault to ASTM drone telemetry. No login, no signup,
+no setup.
 
 Output (truncated):
 
@@ -37,7 +38,7 @@ mapping from `list` above, mount your log into the container:
 
 ```bash
 # Pretend you have an nginx access log.
-docker run --rm -v $(pwd):/data ghcr.io/saunu84/ocsf-mapper:0.3.0 \
+docker run --rm -v $(pwd):/data ghcr.io/saunu84/ocsf-mapper:0.4.4 \
     apply mappings/nginx.json /data/access.log
 ```
 
@@ -50,7 +51,7 @@ You'll see one OCSF event per matched line, JSON-per-line on stdout:
 Pipe to `jq` to read it:
 
 ```bash
-docker run --rm -v $(pwd):/data ghcr.io/saunu84/ocsf-mapper:0.3.0 \
+docker run --rm -v $(pwd):/data ghcr.io/saunu84/ocsf-mapper:0.4.4 \
     apply mappings/nginx.json /data/access.log | jq .
 ```
 
@@ -60,7 +61,7 @@ The interactive flow is the most useful if you're evaluating the tool
 for the first time. Run it:
 
 ```bash
-docker run --rm -p 8000:8000 ghcr.io/saunu84/ocsf-mapper:0.3.0
+docker run --rm -p 8000:8000 ghcr.io/saunu84/ocsf-mapper:0.4.4
 open http://127.0.0.1:8000
 ```
 
@@ -73,7 +74,7 @@ populates.
 
 ## 3 minutes — generate a new mapping with an LLM
 
-If none of the 38 reference mappings fits your log, the LLM-assisted
+If none of the 43 reference mappings fits your log, the LLM-assisted
 generator can draft one. Bring your own Anthropic or OpenAI key:
 
 ```bash
@@ -85,7 +86,7 @@ docker run --rm \
     -e ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
     -v $(pwd)/mappings:/app/mappings \
     -v $(pwd)/samples:/app/samples \
-    ghcr.io/saunu84/ocsf-mapper:0.3.0 \
+    ghcr.io/saunu84/ocsf-mapper:0.4.4 \
     generate my_source samples/my_source.jsonl mappings/my_source.json
 ```
 
@@ -97,12 +98,31 @@ Re-run `apply` against the new mapping to see the output:
 docker run --rm \
     -v $(pwd)/mappings:/app/mappings \
     -v $(pwd)/samples:/app/samples \
-    ghcr.io/saunu84/ocsf-mapper:0.3.0 \
+    ghcr.io/saunu84/ocsf-mapper:0.4.4 \
     apply mappings/my_source.json samples/my_source.jsonl | jq .
 ```
 
 The web UI's `/new` page wraps this same flow visually, with a Monaco
 editor for reviewing the draft before saving.
+
+### Or just iterate on an existing mapping in the browser
+
+If a reference mapping is *close* but not quite right for your input,
+the Mapping tab on any source page has three AI-assist buttons next
+to Save:
+
+| Button | When to use |
+|---|---|
+| **✨ Fix with AI** | Save failed; ask the LLM to repair the lint errors |
+| **♻ Regenerate** | Mapping is past saving; redraft from the pinned sample |
+| **💡 Suggest** | Lint-clean but coverage isn't 100%; ask the LLM to add the missing OCSF fields |
+
+All three need `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` set in the
+container env, surface a 503 with a setup hint if neither is found,
+and **never write to disk directly** — you always hit Save afterwards
+so the linter has the final word. Each response shows a
+*"coverage X% → Y%"* delta so you can tell whether the suggestion
+actually helped.
 
 ## 5 minutes — process a real volume
 
@@ -114,7 +134,7 @@ source (see [`BENCHMARKS.md`](./BENCHMARKS.md)). For backfills past
 # 8 workers, output to Security Lake-compatible partitioned Parquet.
 docker run --rm \
     -v $(pwd):/data \
-    ghcr.io/saunu84/ocsf-mapper:0.3.0 \
+    ghcr.io/saunu84/ocsf-mapper:0.4.4 \
     apply mappings/cloudtrail.json /data/cloudtrail.jsonl /data/lake/ \
     --workers 8 \
     --sink security-lake

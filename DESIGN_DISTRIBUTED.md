@@ -87,7 +87,7 @@ from pyspark.sql.types import StringType
 import json
 
 # Broadcast the mapping config once per job, not per record.
-mapping_path = "s3://ocsf-mappings/v0.2.0/cloudtrail.json"
+mapping_path = "s3://ocsf-mappings/v0.4.4/cloudtrail.json"
 config = spark.sparkContext.broadcast(
     json.loads(spark.sparkContext.textFile(mapping_path).collect()[0])
 )

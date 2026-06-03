@@ -8,8 +8,8 @@ in-memory write counter (so I/O does not skew the result).
 - Python:    `3.9.6` on `macOS-15.6.1-x86_64-i386-64bit`
 - orjson:    `True`
 - ocsf-schema submodule HEAD: pinned (see `.gitmodules`)
-- Wall-clock cap per mapping: 0.5s, min events 1500
-- Run at: 2026-05-30T00:03:58+00:00
+- Wall-clock cap per mapping: 1.0s, min events 2000
+- Run at: 2026-06-03T15:06:55+00:00
 
 For 10 TB-class workloads, multiply the per-source rate below
 by your worker count. See README §"At scale".
@@ -18,42 +18,56 @@ by your worker count. See README §"At scale".
 
 | Source | Parser | Events/sec | MB/sec | Parse % | Route % | Map % | Write % |
 |---|---|---:|---:|---:|---:|---:|---:|
-| `aws_config` | json | 12,020 | 3.4 | 3.6% | 3.2% | 88.2% | 5.0% |
-| `google_workspace` | json | 11,763 | 2.5 | 3.6% | 3.2% | 88.2% | 5.1% |
-| `cron` | json | 11,214 | 1.8 | 3.2% | 2.9% | 89.3% | 4.6% |
-| `crowdstrike_falcon` | json | 11,124 | 3.2 | 3.8% | 3.4% | 87.9% | 4.9% |
-| `splunk_es_alert` | json | 11,085 | 2.0 | 3.5% | 3.4% | 87.7% | 5.5% |
-| `osquery_inventory` | json | 11,078 | 1.9 | 3.4% | 3.3% | 88.1% | 5.3% |
-| `dlp_events` | json | 11,025 | 2.6 | 3.2% | 3.0% | 89.1% | 4.7% |
-| `jamf_inventory` | json | 10,830 | 2.3 | 3.9% | 3.4% | 87.5% | 5.3% |
-| `prisma_cloud` | json | 10,770 | 2.6 | 4.3% | 3.5% | 87.1% | 5.1% |
-| `ueba_alert` | json | 10,647 | 2.3 | 3.7% | 3.3% | 87.3% | 5.7% |
-| `falco_kernel` | json | 10,631 | 3.0 | 3.7% | 2.9% | 88.8% | 4.6% |
-| `qualys_scan` | json | 10,307 | 2.2 | 3.6% | 3.2% | 87.7% | 5.4% |
-| `wazuh` | json | 9,849 | 2.2 | 4.3% | 3.3% | 86.9% | 5.4% |
-| `zeek_dns` | json | 9,823 | 2.1 | 4.1% | 3.1% | 87.7% | 5.1% |
-| `suricata_alert` | json | 9,803 | 2.8 | 4.2% | 3.6% | 87.2% | 5.0% |
-| `waf_logs` | json | 9,795 | 2.5 | 4.0% | 3.2% | 87.7% | 5.0% |
-| `m365_email` | json | 9,693 | 2.2 | 3.5% | 2.9% | 89.0% | 4.6% |
-| `sysmon_process` | json | 9,644 | 2.2 | 3.5% | 3.1% | 88.5% | 4.9% |
-| `windows_event_log` | json | 9,028 | 1.7 | 3.2% | 2.6% | 89.7% | 4.4% |
-| `azure_ad_signin` | json | 8,734 | 3.8 | 4.0% | 2.6% | 89.2% | 4.2% |
-| `cloudflare` | json | 8,028 | 4.1 | 3.9% | 2.3% | 89.7% | 4.1% |
-| `auditd_file` | json | 7,688 | 1.3 | 2.5% | 2.2% | 90.7% | 4.5% |
-| `vpc_flow_logs` | regex | 7,624 | 0.8 | 6.7% | 2.8% | 86.7% | 3.8% |
-| `okta` | json | 7,500 | 4.9 | 5.7% | 3.4% | 86.1% | 4.8% |
-| `cloudtrail` | json | 6,793 | 4.0 | 4.0% | 2.7% | 89.2% | 4.1% |
-| `apache` | regex | 6,158 | 0.9 | 4.1% | 1.8% | 90.9% | 3.1% |
-| `sshd` | regex | 6,055 | 0.6 | 4.8% | 2.1% | 89.8% | 3.3% |
-| `nginx` | regex | 5,726 | 0.9 | 4.0% | 1.8% | 90.8% | 3.4% |
-| `palo_alto` | regex | 5,360 | 0.7 | 5.3% | 2.3% | 89.4% | 3.1% |
+| `aws_config` | json | 11,705 | 3.3 | 3.5% | 3.1% | 88.3% | 5.1% |
+| `jamf_inventory` | json | 11,405 | 2.4 | 3.8% | 3.3% | 87.4% | 5.6% |
+| `google_workspace` | json | 10,995 | 2.3 | 3.7% | 3.1% | 88.1% | 5.1% |
+| `ueba_alert` | json | 10,695 | 2.3 | 3.6% | 3.3% | 87.6% | 5.5% |
+| `qualys_scan` | json | 10,660 | 2.2 | 3.8% | 3.3% | 87.7% | 5.2% |
+| `crowdstrike_falcon` | json | 10,457 | 3.0 | 3.8% | 3.4% | 87.9% | 4.9% |
+| `zeek_dns` | json | 10,388 | 2.2 | 4.1% | 2.9% | 88.2% | 4.9% |
+| `cron` | json | 10,366 | 1.7 | 3.2% | 2.9% | 89.2% | 4.7% |
+| `waf_logs` | json | 10,247 | 2.6 | 4.2% | 3.1% | 87.8% | 4.9% |
+| `windows_registry` | json | 10,214 | 3.1 | 4.8% | 3.1% | 87.0% | 5.1% |
+| `slack_audit` | json | 10,059 | 2.9 | 4.7% | 3.8% | 86.7% | 4.8% |
+| `wazuh` | json | 10,001 | 2.2 | 4.4% | 3.7% | 86.8% | 5.1% |
+| `m365_email` | json | 9,996 | 2.3 | 3.5% | 2.8% | 89.0% | 4.7% |
+| `dlp_events` | json | 9,919 | 2.3 | 3.2% | 2.8% | 89.3% | 4.6% |
+| `gitlab_audit` | json | 9,788 | 2.2 | 4.2% | 3.2% | 87.5% | 5.1% |
+| `suricata_alert` | json | 9,674 | 2.7 | 4.1% | 3.6% | 87.2% | 5.1% |
+| `github_audit` | json | 9,595 | 1.6 | 3.6% | 3.8% | 87.5% | 5.2% |
+| `falco_kernel` | json | 9,471 | 2.7 | 3.7% | 2.7% | 88.9% | 4.7% |
+| `leef_generic` | leef | 8,975 | 1.5 | 9.9% | 2.8% | 82.6% | 4.7% |
+| `windows_event_log` | json | 8,965 | 1.7 | 3.1% | 2.6% | 89.9% | 4.4% |
+| `aws_guardduty` | json | 8,941 | 5.4 | 4.8% | 2.6% | 87.7% | 4.9% |
+| `drone_telemetry` | json | 8,701 | 2.9 | 4.0% | 2.7% | 88.3% | 4.9% |
+| `pagerduty` | json | 8,664 | 5.3 | 6.3% | 3.2% | 85.9% | 4.7% |
+| `azure_ad_signin` | json | 8,635 | 3.8 | 3.9% | 2.5% | 89.4% | 4.2% |
+| `hashicorp_vault` | json | 8,462 | 2.8 | 4.5% | 2.7% | 88.3% | 4.5% |
+| `auditd_file` | json | 8,447 | 1.4 | 3.0% | 7.3% | 82.8% | 6.9% |
+| `microsoft_defender` | json | 8,394 | 5.8 | 5.1% | 2.6% | 87.3% | 5.0% |
+| `osquery_inventory` | json | 8,180 | 1.4 | 2.8% | 2.5% | 90.6% | 4.0% |
+| `splunk_es_alert` | json | 8,107 | 1.5 | 3.7% | 4.8% | 86.9% | 4.6% |
+| `okta` | json | 8,021 | 5.3 | 5.5% | 3.3% | 86.5% | 4.7% |
+| `vpc_flow_logs` | regex | 7,847 | 0.8 | 6.5% | 2.9% | 86.7% | 3.8% |
+| `k8s_audit` | json | 7,785 | 4.4 | 5.3% | 2.4% | 88.0% | 4.3% |
+| `sysmon_process` | json | 7,405 | 1.7 | 3.7% | 2.9% | 88.0% | 5.4% |
+| `duo_security` | json | 6,722 | 5.4 | 6.0% | 2.8% | 86.4% | 4.8% |
+| `cef_generic` | cef | 6,701 | 1.1 | 31.5% | 2.3% | 62.8% | 3.4% |
+| `cloudtrail` | json | 6,084 | 3.6 | 4.5% | 2.8% | 88.5% | 4.3% |
+| `apache` | regex | 6,065 | 0.9 | 4.1% | 1.9% | 90.9% | 3.2% |
+| `nginx` | regex | 5,910 | 0.9 | 4.0% | 1.9% | 90.8% | 3.4% |
+| `palo_alto` | regex | 5,813 | 0.7 | 5.0% | 2.3% | 89.6% | 3.1% |
+| `prisma_cloud` | json | 5,704 | 1.4 | 5.9% | 2.7% | 86.8% | 4.5% |
+| `sshd` | regex | 5,617 | 0.6 | 4.9% | 2.1% | 89.7% | 3.4% |
+| `soar_remediation` | json | 5,210 | 1.9 | 5.1% | 2.5% | 88.4% | 4.0% |
+| `cloudflare` | json | 5,134 | 2.6 | 4.9% | 2.7% | 88.0% | 4.4% |
 
 ## Headlines
 
-- Fastest: **`aws_config`** at 12,020 events/sec.
-- Slowest: **`palo_alto`** at 5,360 events/sec.
-- Median: **`suricata_alert`** at 9,803 events/sec.
-- The `map` phase averages **88.5%** of total time
+- Fastest: **`aws_config`** at 11,705 events/sec.
+- Slowest: **`cloudflare`** at 5,134 events/sec.
+- Median: **`drone_telemetry`** at 8,701 events/sec.
+- The `map` phase averages **87.3%** of total time
   across mappings — DSL dictionary-walking dominates regardless of
   whether the source is JSON or regex.
 
