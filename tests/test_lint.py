@@ -100,6 +100,52 @@ def test_lint_one_flags_validation_failure(tmp_path, schema):
     assert any("missing required" in e for e in r["errors"])
 
 
+def test_lint_one_coalesces_repeated_event_errors(tmp_path, schema):
+    """When ≥3 sample events fail with identical errors, lint_one
+    collapses them into one summary line instead of N near-duplicates.
+
+    Without this, a 100-event sample bloats the audit log entry and the
+    web UI error list with 100 copies of the same message.
+    """
+    mapping = tmp_path / "bare.json"
+    mapping.write_text(json.dumps({
+        "mapping_version": "1.0.0",
+        "parser": "json",
+        "classes": {
+            "authentication": {"mapping": {"some_field": {"const": "x"}}}
+        },
+    }))
+    sample = tmp_path / "bare.jsonl"
+    sample.write_text("{}\n" * 10)
+    r = lint_one(mapping, sample_path=sample, schema=schema)
+    assert r["status"] == "FAIL"
+    err_lines = [e for e in r["errors"] if "missing required" in e]
+    assert len(err_lines) == 1, err_lines
+    assert "events #1-#10" in err_lines[0]
+    assert "(authentication)" in err_lines[0]
+
+
+def test_lint_one_does_not_coalesce_below_threshold(tmp_path, schema):
+    """With <3 failing events, each gets its own line — preserves
+    per-event detail when there's little to dedupe."""
+    mapping = tmp_path / "bare.json"
+    mapping.write_text(json.dumps({
+        "mapping_version": "1.0.0",
+        "parser": "json",
+        "classes": {
+            "authentication": {"mapping": {"some_field": {"const": "x"}}}
+        },
+    }))
+    sample = tmp_path / "bare.jsonl"
+    sample.write_text("{}\n{}\n")
+    r = lint_one(mapping, sample_path=sample, schema=schema)
+    assert r["status"] == "FAIL"
+    err_lines = [e for e in r["errors"] if "missing required" in e]
+    assert len(err_lines) == 2
+    assert err_lines[0].startswith("event #1 (authentication):")
+    assert err_lines[1].startswith("event #2 (authentication):")
+
+
 def test_main_with_empty_folder_exits_zero(tmp_path, capsys):
     rc = main(str(tmp_path))
     assert rc == 0

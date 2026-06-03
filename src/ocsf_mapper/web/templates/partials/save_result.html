@@ -4,7 +4,7 @@
 </div>
 {% else %}
 <div class="save-error">
-  <strong>✗ Save rejected — mapping did not lint clean:</strong>
+  <strong>✗ Save rejected — mapping did not lint clean ({{ errors|length }} error{{ '' if errors|length == 1 else 's' }}):</strong>
   <ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
   <p class="hint">Your edits are still in the editor; fix the issues and try again.</p>
 </div>
