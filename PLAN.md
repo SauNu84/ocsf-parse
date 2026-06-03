@@ -394,26 +394,30 @@ and more vendor formats — those go in v0.4+ on demand.
 
 **Bucket B is now complete. All 8 OCSF top-level categories covered.**
 
-### Bucket C — production engineering
+### Bucket C — production engineering ✅ DONE
 
 Things that matter once *other people* use the tool, not just the
 author. Each item is ~half a session.
 
-- [ ] **Prometheus `/metrics` endpoint** on the web app — mapping
+- [x] **Prometheus `/metrics` endpoint** on the web app — mapping
       count, lint pass rate, coverage drift over time, request
-      latencies for the apply/validate/lint routes.
-- [ ] **Audit log of mapping edits** — the Mapping tab's save endpoint
-      logs who / when / what changed to a local SQLite or NDJSON file.
-      Closes the compliance question "who changed cloudtrail.json last
-      Tuesday?"
-- [ ] **Replay tool** — `ocsf-mapper replay out.parquet --new-mapping`
+      latencies for the apply/validate/lint routes. Commit `0095301`.
+- [x] **Audit log of mapping edits** — the Mapping tab's save endpoint
+      logs who / when / what changed to a local NDJSON file at
+      `<root>/audit/mapping_edits.ndjson` (gitignored — per-install
+      runtime state). Closes the compliance question "who changed
+      cloudtrail.json last Tuesday?" Commit `0095301`.
+- [x] **Replay tool** — `ocsf-mapper replay out.parquet --new-mapping`
       re-runs a new mapping over historical OCSF Parquet output to
       backfill newly-added fields, without re-ingesting raw logs.
-- [ ] **Provider test coverage** — Anthropic / OpenAI provider modules
-      sit at ~50% because we can't unit-test live API calls. Mock the
-      SDKs to bring coverage to ~90% and catch shape regressions.
-- [ ] **Mapping versioning** — add a `mapping_version` field; lint
-      warns when a mapping is edited without a version bump.
+      Commit `62d1eb4`.
+- [x] **Provider test coverage** — Anthropic / OpenAI provider modules
+      were ~50% because we couldn't unit-test live API calls. SDKs are
+      now mocked in `tests/test_provider_mocks.py` (15 tests) to catch
+      shape regressions. Commit `14fff23`.
+- [x] **Mapping versioning** — `mapping_version` field added; `lint`
+      emits a non-fatal warning when an edit lands without one.
+      Commit `4841b75`.
 
 ### Phase E — distributed runtimes
 
