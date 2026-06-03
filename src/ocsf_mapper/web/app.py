@@ -171,6 +171,21 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
         while len(_llm_cache) > _LLM_CACHE_CAP:
             _llm_cache.popitem(last=False)
 
+    def _coverage_score(cfg: dict, schema_obj: Schema) -> Optional[float]:
+        """Best-effort overall coverage score for the AI delta indicator.
+
+        Returns ``None`` if the mapping doesn't declare any OCSF classes
+        (coverage isn't defined there); callers should treat ``None`` as
+        "no delta to show" rather than 0.
+        """
+        try:
+            report = coverage(cfg, schema_obj)
+        except Exception:
+            return None
+        if not report:
+            return None
+        return coverage_summary(report).get("score")
+
     # ----- helpers --------------------------------------------------------
 
     def _row_for_card(entry: dict, registry_by_name: dict) -> dict:
@@ -622,6 +637,7 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
         # 4. Cache lookup — keyed on the editor buffer content + errors so
         #    repeated clicks on the SAME broken mapping return instantly
         #    without re-spending API tokens. (User typing → new key → miss.)
+        before_score = _coverage_score(current, target_schema)
         cache_key = ("fix", name, _content_hash(content), target_schema.version())
         cached = _llm_cache_get(cache_key)
         if cached is not None:
@@ -632,6 +648,8 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
                 "schema_version": target_schema.version(),
                 "provider": "cache",
                 "cached": True,
+                "before_score": before_score,
+                "after_score": _coverage_score(cached, target_schema),
             })
 
         # 5. Call the LLM. Surface every failure mode as a clear string.
@@ -673,6 +691,8 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
             "schema_version": target_schema.version(),
             "provider": getattr(provider, "name", "unknown"),
             "cached": False,
+            "before_score": before_score,
+            "after_score": _coverage_score(fixed, target_schema),
         })
 
     @app.post("/sources/{name}/regenerate-with-ai")
@@ -723,6 +743,15 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
             _content_hash(sample_bytes.decode("utf-8", errors="replace")),
             target_schema.version(),
         )
+        # "Before" baseline = the on-disk mapping we'd be replacing.
+        # The user's Monaco buffer may diverge, but we don't receive
+        # content on Regenerate. Disk content is the honest baseline.
+        try:
+            before_cfg = json.loads(path.read_text())
+            before_score = _coverage_score(before_cfg, target_schema)
+        except Exception:
+            before_score = None
+
         cached = _llm_cache_get(cache_key)
         if cached is not None:
             return JSONResponse({
@@ -731,6 +760,8 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
                 "schema_version": target_schema.version(),
                 "provider": "cache",
                 "cached": True,
+                "before_score": before_score,
+                "after_score": _coverage_score(cached, target_schema),
             })
 
         try:
@@ -759,6 +790,8 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
             "schema_version": target_schema.version(),
             "provider": getattr(provider, "name", "unknown"),
             "cached": False,
+            "before_score": before_score,
+            "after_score": _coverage_score(fresh, target_schema),
         })
 
     @app.post("/sources/{name}/suggest-improvements")
@@ -821,6 +854,7 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
                 ln for ln in sample_path.read_text().splitlines() if ln.strip()
             ][:5]
 
+        before_score = coverage_summary(report).get("score") if report else None
         cache_key = ("suggest", name, _content_hash(content), target_schema.version())
         cached = _llm_cache_get(cache_key)
         if cached is not None:
@@ -831,6 +865,8 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
                 "schema_version": target_schema.version(),
                 "provider": "cache",
                 "cached": True,
+                "before_score": before_score,
+                "after_score": _coverage_score(cached, target_schema),
             })
 
         try:
@@ -863,6 +899,8 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
             "schema_version": target_schema.version(),
             "provider": getattr(provider, "name", "unknown"),
             "cached": False,
+            "before_score": before_score,
+            "after_score": _coverage_score(improved, target_schema),
         })
 
     @app.get("/sources/{name}/snippets", response_class=HTMLResponse)

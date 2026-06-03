@@ -72,6 +72,20 @@
       if (btn) btn.disabled = !on;
     }
 
+    // Format "before_score → after_score" delta. Returns "" if either is
+    // missing (e.g. mapping doesn't declare any OCSF classes — coverage
+    // undefined). Server returns scores in [0, 1]; we render as percent.
+    function _coverageDelta(j) {
+      if (j == null) return '';
+      var b = j.before_score, a = j.after_score;
+      if (typeof b !== 'number' || typeof a !== 'number') return '';
+      var pct = function(x) { return Math.round(x * 100) + '%'; };
+      var arrow = a > b ? '↑' : (a < b ? '↓' : '·');
+      var cls = a > b ? 'delta-up' : (a < b ? 'delta-down' : '');
+      return ' <span class="coverage-delta ' + cls + '">coverage ' +
+             pct(b) + ' ' + arrow + ' ' + pct(a) + '</span>';
+    }
+
     window.ocsfSaveMapping = function(name) {
       if (!window.__ocsfEditor) return;
       var content = window.__ocsfEditor.getValue();
@@ -124,7 +138,7 @@
               '♻ Fresh draft generated from the pinned sample via <code>' +
               (j.provider || 'provider') + '</code>' +
               (j.schema_version ? ' (OCSF ' + j.schema_version + ')' : '') +
-              cacheTag +
+              cacheTag + _coverageDelta(j) +
               '. Review the editor and click <strong>Save</strong> when ready.' +
               '</div>';
             // Clear any stale save_result from before the regen.
@@ -175,7 +189,7 @@
               ' uncovered attribute(s) via <code>' +
               (j.provider || 'provider') + '</code>' +
               (j.schema_version ? ' (OCSF ' + j.schema_version + ')' : '') +
-              cacheTag +
+              cacheTag + _coverageDelta(j) +
               '. Review the editor and click <strong>Save</strong> when ready.' +
               '</div>';
             document.getElementById('save-result').innerHTML = '';
@@ -221,7 +235,7 @@
               '✨ AI suggested a fix for ' + (j.n_errors_fixed || 0) +
               ' error(s) via <code>' + (j.provider || 'provider') + '</code>' +
               (j.schema_version ? ' (OCSF ' + j.schema_version + ')' : '') +
-              cacheTag +
+              cacheTag + _coverageDelta(j) +
               '. Review the editor and click <strong>Save</strong> when ready.' +
               '</div>';
           } else {

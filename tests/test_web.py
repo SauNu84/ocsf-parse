@@ -436,6 +436,65 @@ def test_suggest_improvements_404_for_unknown_source(client):
     assert r.status_code == 404
 
 
+# ---------------------------------------------------------------------------
+# Coverage delta — each AI flow reports before / after scores so the UI
+# can render "coverage 67% → 89%". Scores are floats in [0, 1] or null
+# when the mapping doesn't declare any OCSF classes (delta undefined).
+# ---------------------------------------------------------------------------
+
+
+def test_fix_with_ai_response_includes_coverage_delta(client, monkeypatch, repo_root):
+    monkeypatch.setenv("OCSF_LLM_PROVIDER", "fixture")
+    monkeypatch.setenv(
+        "OCSF_LLM_FIXTURE_DIR", str(repo_root / "tests" / "fixtures" / "llm"),
+    )
+    monkeypatch.setenv("OCSF_LLM_FIXTURE_SOURCE", "cloudtrail_fix")
+    broken = (
+        '{"parser":"json",'
+        '"classes":{"authentication":{"mapping":{"class_uid":{"const":3002}}}}}'
+    )
+    r = client.post("/sources/cloudtrail/fix-with-ai", data={"content": broken})
+    assert r.status_code == 200
+    body = r.json()
+    assert "before_score" in body
+    assert "after_score" in body
+    # The "fixed" response is cloudtrail.json — known to be high-coverage.
+    assert isinstance(body["after_score"], float) and 0.0 <= body["after_score"] <= 1.0
+
+
+def test_regenerate_with_ai_response_includes_coverage_delta(client, monkeypatch, repo_root):
+    monkeypatch.setenv("OCSF_LLM_PROVIDER", "fixture")
+    monkeypatch.setenv(
+        "OCSF_LLM_FIXTURE_DIR", str(repo_root / "tests" / "fixtures" / "llm"),
+    )
+    monkeypatch.setenv("OCSF_LLM_FIXTURE_SOURCE", "cloudtrail_regen")
+    r = client.post("/sources/cloudtrail/regenerate-with-ai")
+    assert r.status_code == 200
+    body = r.json()
+    assert "before_score" in body
+    assert "after_score" in body
+    # Before = the on-disk cloudtrail.json (clean, high-coverage).
+    assert isinstance(body["before_score"], float)
+
+
+def test_suggest_improvements_response_includes_coverage_delta(client, monkeypatch, repo_root):
+    monkeypatch.setenv("OCSF_LLM_PROVIDER", "fixture")
+    monkeypatch.setenv(
+        "OCSF_LLM_FIXTURE_DIR", str(repo_root / "tests" / "fixtures" / "llm"),
+    )
+    monkeypatch.setenv("OCSF_LLM_FIXTURE_SOURCE", "cloudtrail_suggest")
+    current = (repo_root / "mappings" / "cloudtrail.json").read_text()
+    r = client.post(
+        "/sources/cloudtrail/suggest-improvements", data={"content": current},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert "before_score" in body
+    assert "after_score" in body
+    assert isinstance(body["before_score"], float)
+    assert isinstance(body["after_score"], float)
+
+
 def test_fix_with_ai_rejects_clean_mapping(client, monkeypatch, repo_root):
     """Nothing-to-fix path: if the user clicks the button while the
     current buffer already lints clean, return a clear message instead

@@ -563,6 +563,29 @@ footer {
   cursor: not-allowed;
 }
 
+/* Coverage delta pill rendered inside the AI-ok notice — "coverage
+   67% → 89%". Up arrow goes green; down arrow goes warn-orange. */
+.coverage-delta {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(74, 138, 244, 0.3);
+  color: #1b3a8a;
+  margin-left: 6px;
+  white-space: nowrap;
+}
+.coverage-delta.delta-up {
+  border-color: rgba(31, 136, 61, 0.45);
+  color: var(--ok);
+}
+.coverage-delta.delta-down {
+  border-color: rgba(207, 145, 0, 0.45);
+  color: var(--warn);
+}
+
 /* ---- validation tab (step 2) -------------------------------------- */
 
 .validation-summary {
