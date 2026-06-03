@@ -31,6 +31,13 @@ for entry in "${SCHEMA_VERSIONS[@]}"; do
     echo "✓ $dir already present — skipping."
     continue
   fi
+  # CI checks out submodules shallow by default, so the target commit
+  # may not be in the local clone. Deepen if missing.
+  if ! git -C ocsf-schema cat-file -e "${ref}^{commit}" 2>/dev/null; then
+    echo "deepening ocsf-schema/ to reach $ref…"
+    git -C ocsf-schema fetch --unshallow origin 2>/dev/null \
+      || git -C ocsf-schema fetch origin "$ref"
+  fi
   echo "materialising $dir at $ref…"
   git -C ocsf-schema worktree add "../$dir" "$ref"
 done
