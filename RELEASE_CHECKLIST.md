@@ -142,6 +142,31 @@ git push origin vX.Y.Z
 All four are visible on https://github.com/SauNu84/ocsf-parse/actions
 within ~30 seconds of the push.
 
+#### If `publish.yml` reports the "Publish to PyPI" step as failed
+
+The build job (sdist + wheel + tests + lint) is independent from the
+publish job (OIDC handshake + upload). The publish step occasionally
+fails with no obvious cause — observed on v0.4.2 — even though the
+artifact built clean and the trust is configured. Symptoms:
+
+- Actions UI shows "Build sdist + wheel" ✅ and "Publish to PyPI" ❌
+- PyPI does not list the new version
+- No error message visible in the action summary
+
+**Fix**: Actions UI → the failed run → top-right **Re-run failed
+jobs**. Same artifact gets re-uploaded; OIDC re-issues. Usually
+goes green on the retry.
+
+If a second retry also fails, fetch the actual log
+(`gh run view <run_id> --log-failed`) and check for one of:
+
+- *"Forbidden"* on the upload → Trusted Publisher misconfigured;
+  revisit §1.2.
+- *"This filename has already been used"* → the wheel was actually
+  uploaded on the original attempt and the failure was a network
+  hiccup *after* the upload completed. Bump to the next patch.
+- *"503"* / *"Bad Gateway"* → transient PyPI; wait 5 min and re-run.
+
 ### 2.5 Cut the GitHub Release page
 
 The tag is enough for `pip install` and `docker pull`. For a polished
