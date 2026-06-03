@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.4.1 — 2026-06-03 (Patch: first PyPI release of the v0.4 series)
+
+CI-only patch. No code-level behaviour changes; same feature surface
+as 0.4.0. The 0.4.0 git tag and Docker image shipped, but `publish.yml`
+failed at its test step before reaching PyPI — so 0.4.0 never landed
+there. This release ships the same feature surface to PyPI.
+
+### Fixes
+- **CI materialises pinned OCSF schema worktrees** (`5fb313e`): the
+  schema-version-selector tests added in 0.4.0 expect
+  `ocsf-schema-1.8.0/` + `ocsf-schema-1.7.0/` as sibling worktrees of
+  the submodule. Local dev runs `scripts/setup_schema_versions.sh`;
+  CI never did. Both `ci.yml` and `publish.yml` now run the script
+  right after checkout.
+- **Deepen submodule on missing commit** (`1d6ea50`):
+  `actions/checkout@v4` does shallow submodule clones, so the pinned
+  commits (`3dcb905d` for v1.8.0, `dc6359b4` for v1.7.0) weren't in
+  CI's local ocsf-schema. `setup_schema_versions.sh` now checks with
+  `git cat-file -e <ref>^{commit}` and runs `fetch --unshallow` on
+  miss.
+
+### Why no 0.4.0 on PyPI
+
+The 0.4.0 git tag (`53b3fb4`) and Docker image both exist and are
+canonical for that snapshot. PyPI users skip 0.4.0 and install 0.4.1
+to get the v0.4 feature surface (5 new mappings, OCSF schema version
+selector, two-pane homepage).
+
+---
+
 ## 0.4.0 — 2026-06-03 (Coverage + UX: 5 new sources, schema versioning, two-pane homepage)
 
 Three feature areas, each independently shippable but bundled because
