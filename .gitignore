@@ -33,6 +33,12 @@ coverage.xml
 # OS
 .DS_Store
 
+# Secrets — env files holding API keys (ANTHROPIC_API_KEY / OPENAI_API_KEY
+# for the LLM generator, anything else). Never tracked.
+.env
+.env.*
+!.env.example
+
 # Local scratch
 _lint_*.jsonl
 _lint_*.classes.txt
