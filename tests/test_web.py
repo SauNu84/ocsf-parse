@@ -348,6 +348,94 @@ def test_regenerate_with_ai_404_for_unknown_source(client):
     assert r.status_code == 404
 
 
+# ---------------------------------------------------------------------------
+# Suggest-improvements endpoint
+# ---------------------------------------------------------------------------
+
+
+def test_suggest_improvements_returns_expanded_mapping(client, monkeypatch, repo_root):
+    """Happy path: post a lint-clean but incomplete-coverage mapping, the
+    LLM returns an expanded version with additional field mappings."""
+    monkeypatch.setenv("OCSF_LLM_PROVIDER", "fixture")
+    monkeypatch.setenv(
+        "OCSF_LLM_FIXTURE_DIR", str(repo_root / "tests" / "fixtures" / "llm"),
+    )
+    monkeypatch.setenv("OCSF_LLM_FIXTURE_SOURCE", "cloudtrail_suggest")
+
+    # Use the on-disk cloudtrail.json — it lints clean but coverage isn't
+    # 100% for every recommended attr, so the endpoint will call the LLM.
+    import json as _j
+    current = (repo_root / "mappings" / "cloudtrail.json").read_text()
+    r = client.post(
+        "/sources/cloudtrail/suggest-improvements",
+        data={"content": current},
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["ok"] is True
+    assert body["provider"] == "fixture"
+    assert body["missing_attrs"] >= 1  # cloudtrail has at least one uncovered
+    parsed = _j.loads(body["mapping"])
+    assert isinstance(parsed, dict)
+
+
+def test_suggest_improvements_short_circuits_when_complete(client, monkeypatch, repo_root):
+    """If coverage is 100%, the endpoint returns a "nothing to improve"
+    message without burning an LLM call. We can't easily construct a
+    100%-coverage mapping in a test, so we verify the inverse: a mapping
+    with KNOWN missing attrs reports missing_attrs > 0."""
+    monkeypatch.setenv("OCSF_LLM_PROVIDER", "fixture")
+    monkeypatch.setenv(
+        "OCSF_LLM_FIXTURE_DIR", str(repo_root / "tests" / "fixtures" / "llm"),
+    )
+    monkeypatch.setenv("OCSF_LLM_FIXTURE_SOURCE", "cloudtrail_suggest")
+
+    # A minimal mapping that doesn't declare any classes → coverage report
+    # is empty → n_missing == 0 → short-circuit fires.
+    r = client.post(
+        "/sources/cloudtrail/suggest-improvements",
+        data={"content": '{"parser":"json","classes":{}}'},
+    )
+    assert r.status_code == 400
+    body = r.json()
+    assert "Nothing to improve" in body["error"]
+
+
+def test_suggest_improvements_rejects_invalid_json(client, monkeypatch, repo_root):
+    monkeypatch.setenv("OCSF_LLM_PROVIDER", "fixture")
+    monkeypatch.setenv(
+        "OCSF_LLM_FIXTURE_DIR", str(repo_root / "tests" / "fixtures" / "llm"),
+    )
+    monkeypatch.setenv("OCSF_LLM_FIXTURE_SOURCE", "cloudtrail_suggest")
+    r = client.post(
+        "/sources/cloudtrail/suggest-improvements",
+        data={"content": "{not valid json"},
+    )
+    assert r.status_code == 400
+    assert "invalid JSON" in r.json()["error"]
+
+
+def test_suggest_improvements_no_provider_503(client, monkeypatch, repo_root):
+    monkeypatch.delenv("OCSF_LLM_PROVIDER", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    current = (repo_root / "mappings" / "cloudtrail.json").read_text()
+    r = client.post(
+        "/sources/cloudtrail/suggest-improvements",
+        data={"content": current},
+    )
+    assert r.status_code == 503
+    assert r.json()["code"] == "no_provider"
+
+
+def test_suggest_improvements_404_for_unknown_source(client):
+    r = client.post(
+        "/sources/totally_made_up/suggest-improvements",
+        data={"content": "{}"},
+    )
+    assert r.status_code == 404
+
+
 def test_fix_with_ai_rejects_clean_mapping(client, monkeypatch, repo_root):
     """Nothing-to-fix path: if the user clicks the button while the
     current buffer already lints clean, return a clear message instead

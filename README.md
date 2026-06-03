@@ -139,7 +139,7 @@ git submodule update --init --recursive
   - *Mapping* — Monaco JSON editor with a **"Lint against OCSF"
     dropdown** (default 1.9.0-dev / pinned 1.8.0 / 1.7.0). Save runs
     the linter against the pinned sample at the chosen schema version
-    server-side and only writes the file if it passes. Two AI-assist
+    server-side and only writes the file if it passes. Three AI-assist
     buttons sit next to Save:
     - **✨ Fix with AI** — enables after a failed save. Sends the
       current mapping + lint errors + first 5 sample events to the
@@ -147,11 +147,18 @@ git submodule update --init --recursive
     - **♻ Regenerate** — always enabled. Asks for a fresh draft from
       the pinned sample (same two-phase flow as `/new` wizard); useful
       when the current mapping is past saving.
+    - **💡 Suggest** — coverage-aware. Takes a lint-clean mapping,
+      computes the missing required + recommended OCSF attributes, and
+      asks the LLM to ADD field mappings for them while preserving
+      every existing target. Bumps coverage without rewriting.
 
-    Either button needs `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` set
-    (or `OCSF_LLM_PROVIDER=fixture` for offline dev). Both surface a
-    503 with a setup hint instead of crashing when no key is found.
-    Neither writes to disk — Save is always the final linter gate.
+    All three need `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` set (or
+    `OCSF_LLM_PROVIDER=fixture` for offline dev). They surface a 503
+    with a setup hint instead of crashing when no key is found.
+    Successful results are cached in-memory (LRU, cap 16) keyed on the
+    input — clicking the same button twice on the same content returns
+    the previous draft instantly, no second API call. None of these
+    write to disk — Save is always the final linter gate.
   - *Validation* — full validator report across the pinned sample with a
     recurring-issues rollup.
   - *Coverage* — per-class bars (required + recommended attrs populated)

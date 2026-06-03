@@ -323,6 +323,122 @@ def fix_mapping(
 
 
 # ---------------------------------------------------------------------------
+# suggest-improvements — coverage-aware expansion of a clean mapping
+# ---------------------------------------------------------------------------
+
+
+def prompt_suggest_improvements(
+    current: dict,
+    coverage_report: dict,
+    sample_lines: list[str],
+    schema: Schema,
+) -> str:
+    """Build the LLM prompt for the Mapping-tab "Suggest improvements" flow.
+
+    Unlike fix_mapping, the current mapping is expected to lint clean.
+    The goal is to ADD field mappings for the OCSF attributes the
+    mapping isn't yet populating — typically `recommended` attrs that
+    bump the coverage score without changing what already works.
+    """
+    parts: list[str] = [
+        "You are expanding an OCSF mapping that already lints clean.\n",
+        "Goal: ADD field mappings for the listed missing OCSF attributes. "
+        "Preserve EVERY existing mapping target and op exactly as-is.\n",
+        "\n=== CURRENT MAPPING (lints clean) ===\n",
+        json.dumps(current, indent=2),
+        "\n\n=== MISSING ATTRIBUTES (from the coverage report) ===\n",
+    ]
+    schema_blocks: list[tuple[str, set[str]]] = []
+    for cls_name, stats in coverage_report.items():
+        missing_req = stats.get("missing_required") or []
+        missing_rec = stats.get("missing_recommended") or []
+        if not missing_req and not missing_rec:
+            continue
+        parts.append(f"\n--- class: {cls_name} ---\n")
+        if missing_req:
+            parts.append(f"  required (must add):    {', '.join(missing_req)}\n")
+        if missing_rec:
+            parts.append(f"  recommended (preferred): {', '.join(missing_rec)}\n")
+        schema_blocks.append((cls_name, set(missing_req) | set(missing_rec)))
+
+    if not schema_blocks:
+        # Caller should have short-circuited; this is the safety net.
+        parts.append("\n(no missing attributes — nothing to add)\n")
+
+    if sample_lines:
+        parts.append("\n=== SAMPLE LOG LINES (first 5 — verify field paths exist) ===\n")
+        for s in sample_lines[:5]:
+            parts.append(s + "\n")
+
+    if schema_blocks:
+        parts.append(
+            "\n=== OCSF SCHEMA CONTEXT (only the missing attrs, type + description) ===\n"
+        )
+        for cls_name, missing in schema_blocks:
+            try:
+                full = schema.load_class(cls_name)
+            except Exception:
+                continue
+            attrs = full.get("attributes", {}) or {}
+            parts.append(f"\n--- class: {cls_name} ---\n")
+            parts.append(json.dumps({
+                k: {
+                    "type": v.get("type"),
+                    "requirement": v.get("requirement"),
+                    "enum": v.get("enum"),
+                    "description": (v.get("description") or "")[:160],
+                }
+                for k, v in attrs.items()
+                if k in missing
+            }, indent=2))
+            parts.append("\n")
+
+    parts.append("""
+TASK: Return the EXPANDED mapping JSON.
+
+Rules — read carefully:
+  1. Preserve every target path and op from the current mapping byte-for-byte.
+     Do NOT change `class_uid`, `metadata.*`, or any existing op.
+  2. For each missing attribute, add a new top-level target inside the
+     correct class's `mapping` block. Use $.path ops to read from the
+     sample's actual field names — DO NOT invent paths that aren't in
+     the sample.
+  3. If a missing attribute can't be derived from the sample, prefer a
+     sensible `const` (e.g. service.name, cloud.provider) over an
+     unverifiable $.path.
+  4. Skip attrs you can't reasonably populate — partial progress is OK.
+
+Available <op> forms: const, path, group, lookup (with table/default),
+time (with format), range, expr, raw, int, bool, for_each.
+
+OUTPUT: emit ONLY the JSON config, no commentary, no code fences. JSON.
+""")
+    return "".join(parts)
+
+
+def suggest_improvements(
+    current: dict,
+    coverage_report: dict,
+    sample_lines: list[str],
+    *,
+    provider: Optional[LLMProvider] = None,
+    schema: Optional[Schema] = None,
+) -> dict:
+    """Ask the LLM to add field mappings for unpopulated OCSF attributes.
+
+    ``coverage_report`` is the per-class dict returned by
+    :func:`ocsf_mapper.coverage.coverage`. The caller is expected to
+    have already verified the mapping lints clean; this flow doesn't
+    repair errors (use :func:`fix_mapping` for that).
+    """
+    schema = schema or Schema()
+    provider = provider or get_provider()
+    prompt = prompt_suggest_improvements(current, coverage_report, sample_lines, schema)
+    raw = provider.complete(prompt)
+    return json.loads(_strip_codefence(raw))
+
+
+# ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
 

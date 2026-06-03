@@ -761,6 +761,110 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
             "cached": False,
         })
 
+    @app.post("/sources/{name}/suggest-improvements")
+    def source_suggest_improvements(
+        name: str,
+        content: str = Form(...),
+        schema_version: str = Form(""),
+    ) -> JSONResponse:
+        """Coverage-aware AI flow: ask the LLM to ADD field mappings for
+        OCSF attributes the current (lint-clean) mapping isn't populating.
+
+        Unlike fix-with-ai, the input is expected to already lint clean —
+        the goal is bumping the coverage score, not repairing errors.
+        """
+        from ocsf_mapper.generate import suggest_improvements
+        from ocsf_mapper.providers import get_provider
+
+        path = mappings_dir / f"{name}.json"
+        if not path.exists():
+            return JSONResponse(
+                {"ok": False, "error": f"unknown source: {name}"},
+                status_code=404,
+            )
+
+        try:
+            current = json.loads(content)
+        except json.JSONDecodeError as e:
+            return JSONResponse(
+                {"ok": False, "error": f"invalid JSON: {e}. Fix the syntax first."},
+                status_code=400,
+            )
+
+        try:
+            target_schema = _get_schema(schema_version or None)
+        except FileNotFoundError as e:
+            return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+
+        # Compute coverage to find unpopulated attrs. Short-circuit if
+        # everything's already covered — no LLM call worth making.
+        report = coverage(current, target_schema)
+        n_missing = sum(
+            len(v.get("missing_required") or [])
+            + len(v.get("missing_recommended") or [])
+            for v in report.values()
+        )
+        if n_missing == 0:
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "error": "Nothing to improve — coverage is already 100% "
+                             "for required + recommended attributes.",
+                },
+                status_code=400,
+            )
+
+        sample_path = _find_sample_path(name)
+        sample_lines: list[str] = []
+        if sample_path and sample_path.exists():
+            sample_lines = [
+                ln for ln in sample_path.read_text().splitlines() if ln.strip()
+            ][:5]
+
+        cache_key = ("suggest", name, _content_hash(content), target_schema.version())
+        cached = _llm_cache_get(cache_key)
+        if cached is not None:
+            return JSONResponse({
+                "ok": True,
+                "mapping": json.dumps(cached, indent=2),
+                "missing_attrs": n_missing,
+                "schema_version": target_schema.version(),
+                "provider": "cache",
+                "cached": True,
+            })
+
+        try:
+            provider = get_provider()
+            improved = suggest_improvements(
+                current, report, sample_lines,
+                provider=provider, schema=target_schema,
+            )
+        except RuntimeError as e:
+            return JSONResponse(
+                {"ok": False, "error": str(e), "code": "no_provider"},
+                status_code=503,
+            )
+        except (json.JSONDecodeError, ValueError) as e:
+            return JSONResponse(
+                {"ok": False, "error": f"LLM response was not valid JSON: {e}"},
+                status_code=502,
+            )
+        except Exception as e:
+            return JSONResponse(
+                {"ok": False, "error": f"LLM call failed: {e!r}"},
+                status_code=502,
+            )
+
+        _llm_cache_put(cache_key, improved)
+        return JSONResponse({
+            "ok": True,
+            "mapping": json.dumps(improved, indent=2),
+            "missing_attrs": n_missing,
+            "schema_version": target_schema.version(),
+            "provider": getattr(provider, "name", "unknown"),
+            "cached": False,
+        })
+
     @app.get("/sources/{name}/snippets", response_class=HTMLResponse)
     def source_snippets(name: str, request: Request) -> HTMLResponse:
         cfg = _mapping_or_404(name)

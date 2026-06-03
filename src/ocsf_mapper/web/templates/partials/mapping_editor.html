@@ -25,6 +25,12 @@
             title="Discards the current mapping and asks the configured LLM provider to draft a fresh one from the pinned sample.">
       ♻ Regenerate
     </button>
+    <button id="btn-suggest-improvements"
+            class="btn-secondary"
+            onclick="ocsfSuggestImprovements('{{ name }}')"
+            title="Coverage-aware: asks the configured LLM provider to add field mappings for OCSF attributes the current mapping isn't yet populating.">
+      💡 Suggest
+    </button>
     <button class="btn-primary" onclick="ocsfSaveMapping('{{ name }}')">Save</button>
   </div>
   <div id="save-result" class="save-result"></div>
@@ -134,6 +140,56 @@
         })
         .finally(function() {
           if (btn) { btn.textContent = '♻ Regenerate'; btn.disabled = false; }
+        });
+    };
+
+    window.ocsfSuggestImprovements = function(name) {
+      if (!window.__ocsfEditor) return;
+      if (!window.confirm(
+        "Ask AI to add OCSF field mappings the current mapping is missing?\n\n" +
+        "Your existing field mappings are preserved; new ones are added for " +
+        "the uncovered required + recommended attributes. The new mapping " +
+        "replaces the editor buffer; you'll need to click Save before it " +
+        "lands on disk."
+      )) return;
+      var btn = document.getElementById('btn-suggest-improvements');
+      var aiBox = document.getElementById('ai-result');
+      var content = window.__ocsfEditor.getValue();
+      var fd = new FormData();
+      fd.append('content', content);
+      var pick = document.getElementById('schema-version-select');
+      if (pick) fd.append('schema_version', pick.value || '');
+      if (btn) { btn.disabled = true; btn.textContent = '💡 Thinking…'; }
+      aiBox.innerHTML = '';
+      fetch('/sources/' + encodeURIComponent(name) + '/suggest-improvements',
+            { method: 'POST', body: fd })
+        .then(function(r) { return r.json().then(function(j) { return { json: j, ok: r.ok }; }); })
+        .then(function(res) {
+          var j = res.json;
+          if (res.ok && j.ok && j.mapping) {
+            window.__ocsfEditor.setValue(j.mapping);
+            var cacheTag = j.cached ? ' <em>(cached — no API call)</em>' : '';
+            aiBox.innerHTML =
+              '<div class="ai-ok">' +
+              '💡 Added field mappings for ' + (j.missing_attrs || 0) +
+              ' uncovered attribute(s) via <code>' +
+              (j.provider || 'provider') + '</code>' +
+              (j.schema_version ? ' (OCSF ' + j.schema_version + ')' : '') +
+              cacheTag +
+              '. Review the editor and click <strong>Save</strong> when ready.' +
+              '</div>';
+            document.getElementById('save-result').innerHTML = '';
+            _setAiButtonEnabled(false);
+          } else {
+            var msg = (j && j.error) || ('HTTP ' + (res.ok ? '200' : 'error'));
+            aiBox.innerHTML = '<div class="ai-error">💡 ' + msg + '</div>';
+          }
+        })
+        .catch(function(err) {
+          aiBox.innerHTML = '<div class="ai-error">network error: ' + err + '</div>';
+        })
+        .finally(function() {
+          if (btn) { btn.textContent = '💡 Suggest'; btn.disabled = false; }
         });
     };
 
