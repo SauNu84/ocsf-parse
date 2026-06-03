@@ -1,6 +1,17 @@
 {% extends "base.html" %}
 {% block title %}{{ name }} — ocsf-mapper{% endblock %}
 {% block content %}
+{# Prefetch the Monaco editor bundle at idle priority so it's already in
+   the browser cache by the time the user clicks the Mapping tab. Costs
+   one background fetch per source-page visit; saves the 5-10s cold-load
+   wait when the user actually opens the editor. #}
+<link rel="prefetch" as="script"
+      href="https://cdn.jsdelivr.net/npm/monaco-editor@0.46.0/min/vs/loader.js">
+<link rel="prefetch" as="script"
+      href="https://cdn.jsdelivr.net/npm/monaco-editor@0.46.0/min/vs/editor/editor.main.js">
+<link rel="prefetch" as="style"
+      href="https://cdn.jsdelivr.net/npm/monaco-editor@0.46.0/min/vs/editor/editor.main.css">
+
 <section class="source-head">
   <a href="/" class="back">← all sources</a>
   <h1>{{ entry.display_name }}</h1>
