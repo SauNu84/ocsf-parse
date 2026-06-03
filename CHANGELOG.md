@@ -1,5 +1,64 @@
 # Changelog
 
+## 0.4.4 — 2026-06-03 (Third AI flow, win indicator, editor preload)
+
+Completes the AI trio and adds measurable feedback for every flow.
+
+### 💡 Suggest-improvements AI button (`0fdfa9d`)
+
+The third and final entry in the Mapping-tab AI trio:
+
+  ✨ Fix with AI    →  "repair my lint errors"
+  ♻ Regenerate    →  "throw it out, redraft from sample"
+  💡 Suggest       →  "I lint clean but my coverage isn't 100% — add
+                       the missing recommended/required fields"
+
+The endpoint runs `coverage(cfg, schema)` to find the missing
+required + recommended attrs across the mapping's classes,
+short-circuits when there's nothing to add (no LLM call burned), and
+otherwise sends the LLM the missing-attrs list + schema descriptions
+for those attrs only. Task is PRESERVE-existing-and-ADD-missing,
+explicit in the prompt — the LLM is told not to touch existing ops.
+
+Shares the same cache + provider + UI patterns as Fix and Regenerate.
+Cache key is `("suggest", source, content_hash, schema_version)` so
+hits across all three flows are independent.
+
+### Coverage delta indicator on every AI flow (`ea5783e`)
+
+Every AI response now answers *"did this actually help?"*:
+
+  💡 Added field mappings for 7 uncovered attribute(s) via openai
+     (OCSF 1.9.0-dev) [coverage 67% → 89% ↑]
+
+Server side: each of the three AI endpoints computes
+`coverage(before)` and `coverage(after)` via a shared
+`_coverage_score` helper, returns both as floats in the JSON
+response (`before_score` / `after_score`). For Regenerate the
+"before" is the on-disk mapping (honest baseline, since the endpoint
+doesn't receive the current Monaco buffer).
+
+UI side: a shared `_coverageDelta()` JS helper renders the pill
+inside the AI notice with `↑` / `↓` / `·` arrows and green /
+warn-orange / neutral tint. Cached responses recompute the
+after-score (cheap), so cache hits also show the delta.
+
+### Monaco editor prefetch (`65b2550`)
+
+When the user opens a source page, the browser fetches the Monaco
+editor JS + CSS bundle from `cdn.jsdelivr.net` at idle priority
+while they read the Sample tab. By the time they click Mapping, the
+bundle is in the browser cache — paint is near-instant; the cold-
+load spinner shipped in 0.4.3 still works, but the user almost
+never sees it now.
+
+Three `<link rel="prefetch">` hints at the top of `source.html`.
+No CDN swap, no wheel size hit. Gets ~80% of the value of fully
+self-hosting Monaco for 3 lines of HTML; full self-host remains a
+future option.
+
+---
+
 ## 0.4.3 — 2026-06-03 (Regenerate-with-AI + LLM cache + UX polish)
 
 Three follow-on UX wins on top of the v0.4.2 Fix-with-AI feature.
