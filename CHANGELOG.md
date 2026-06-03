@@ -1,5 +1,70 @@
 # Changelog
 
+## 0.4.3 — 2026-06-03 (Regenerate-with-AI + LLM cache + UX polish)
+
+Three follow-on UX wins on top of the v0.4.2 Fix-with-AI feature.
+
+### ♻ Regenerate-with-AI button (`64685d0`)
+
+The natural complement to Fix-with-AI:
+
+  Fix-with-AI    →  "this is mostly right; repair the lint errors"
+  Regenerate     →  "this is a wreck; throw it out and re-draft from
+                     the pinned sample"
+
+New endpoint `POST /sources/{name}/regenerate-with-ai` reads the
+pinned sample and calls the existing two-phase `generate.generate()`
+flow — same machinery the `/new` wizard uses, just bound to an
+existing source. Returns the fresh draft as a JSON string the
+frontend stuffs into Monaco. The user still hits Save; the linter
+is always the final gate.
+
+Always-enabled button next to Fix-with-AI. JS `confirm()` warns
+about discarding edits before firing the endpoint.
+
+### In-memory LRU cache for AI results (`c672f1a`)
+
+Identical Regenerate/Fix-with-AI inputs return the previous LLM
+result instantly — no second API call, no second token spend.
+
+- OrderedDict-based LRU, cap 16, lives for the lifetime of the
+  server process. Restart wipes it (intentional — no TTLs or
+  persistence to reason about).
+- Key shape: `(op, source, content_hash, schema_version)`. Editing
+  the sample / switching the OCSF dropdown / typing in Monaco all
+  miss correctly; otherwise hit.
+- Cache stores **successful results only**. Failures and 503s don't
+  poison the cache.
+- API response gains `cached: bool`; UI renders *"(cached — no API
+  call)"* on the AI notice so users see when they didn't burn a
+  spend.
+
+### Monaco loading spinner (`2b25af6`)
+
+The Monaco editor loads its ~5 MB JS bundle from `cdn.jsdelivr.net`
+on first paint. Cold-cache that takes 5-10 seconds during which the
+editor area was a blank rectangle — looked broken, prompted *"is it
+caching anything?"* confusion.
+
+Add a CSS spinner + *"Loading editor… (downloading Monaco JS bundle
+on first visit)"* placeholder inside `#monaco-host`. When
+`monaco.editor.create()` runs, it replaces the host's children with
+its own DOM, so the placeholder auto-vanishes — no JS lifecycle
+coupling. Applied to both `partials/mapping_editor.html` (existing
+sources) and `partials/wizard_draft.html` (new-source wizard).
+
+### Operational hygiene
+
+- `.env` and `.env.*` files now gitignored (`94d0569`) — defense in
+  depth for the LLM provider keys (`ANTHROPIC_API_KEY` /
+  `OPENAI_API_KEY`) that the Fix/Regenerate flows read from env.
+- `docs/release/`: OIDC publish re-run pattern documented in
+  `RELEASE_CHECKLIST.md` §2.4 (`d888ff2`). Symptom: build job green,
+  publish step silently fails, PyPI doesn't list the new version.
+  Fix: Actions UI → re-run failed jobs.
+
+---
+
 ## 0.4.2 — 2026-06-03 (Fix-with-AI + README screenshots)
 
 Two user-visible additions on top of v0.4.1.

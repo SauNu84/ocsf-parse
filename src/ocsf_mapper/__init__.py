@@ -30,4 +30,4 @@ __all__ = [
     "Schema",
     "list_mappings",
 ]
-__version__ = "0.4.2"
+__version__ = "0.4.3"
