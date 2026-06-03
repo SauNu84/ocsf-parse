@@ -42,5 +42,9 @@ _lint_*.classes.txt
 # Runtime audit / telemetry — per-install operational state, not source.
 audit/
 
+# Pinned OCSF schema versions — materialized lazily as git worktrees of the
+# ocsf-schema submodule (see scripts/setup_schema_versions.sh).
+ocsf-schema-*/
+
 # Claude Code local config / skills (user-specific)
 .claude/

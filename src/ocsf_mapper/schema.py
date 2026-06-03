@@ -13,21 +13,30 @@ the generator, and the linter:
 Schema location resolution order:
 
   1. Explicit ``root=`` argument to :class:`Schema`
-  2. ``OCSF_SCHEMA_ROOT`` environment variable
-  3. ``ocsf-schema/`` directory next to the repository root (the submodule)
+  2. ``version=`` argument resolving to a pinned ``ocsf-schema-<v>/`` worktree
+  3. ``OCSF_SCHEMA_ROOT`` environment variable
+  4. ``ocsf-schema/`` directory next to the repository root (the submodule)
+
+Pinned alternate versions are materialised as git worktrees of the
+ocsf-schema submodule via ``scripts/setup_schema_versions.sh``; they appear
+as sibling directories like ``ocsf-schema-1.8.0/`` and are auto-discovered
+by :func:`list_available_versions`.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Optional
 
 
 # repo-relative default: src/ocsf_mapper/schema.py -> ../../ocsf-schema
-_DEFAULT_ROOT = Path(__file__).resolve().parents[2] / "ocsf-schema"
+_REPO_ROOT    = Path(__file__).resolve().parents[2]
+_DEFAULT_ROOT = _REPO_ROOT / "ocsf-schema"
+_PINNED_PREFIX = "ocsf-schema-"
 
 
 def default_schema_root() -> Path:
@@ -38,11 +47,79 @@ def default_schema_root() -> Path:
     return _DEFAULT_ROOT
 
 
+def resolve_schema_root(version: Optional[str] = None) -> Path:
+    """Map a logical version label to a checked-out schema directory.
+
+    ``version=None`` returns the default root (current submodule). A label
+    like ``"1.8.0"`` resolves to ``<repo>/ocsf-schema-1.8.0/`` — the worktree
+    materialised by ``scripts/setup_schema_versions.sh``. Raises
+    ``FileNotFoundError`` if the directory isn't on disk.
+    """
+    if not version:
+        return default_schema_root()
+    candidate = _REPO_ROOT / f"{_PINNED_PREFIX}{version}"
+    if not candidate.is_dir():
+        raise FileNotFoundError(
+            f"Pinned schema version {version!r} not found at {candidate}. "
+            f"Run scripts/setup_schema_versions.sh to materialise it."
+        )
+    return candidate
+
+
+def list_available_versions() -> list[dict]:
+    """Return one entry per available schema version, default first.
+
+    Each entry is ``{label, root, is_default}`` where ``label`` is the
+    version string declared by that schema's ``version.json`` and
+    ``is_default`` is true for the active submodule.
+    """
+    out: list[dict] = []
+    default_root = default_schema_root()
+    if default_root.is_dir():
+        try:
+            label = json.loads((default_root / "version.json").read_text())["version"]
+        except (FileNotFoundError, json.JSONDecodeError, KeyError):
+            label = "default"
+        out.append({"label": label, "root": default_root, "is_default": True})
+    pinned: list[tuple[tuple[int, ...], dict]] = []
+    for d in sorted(_REPO_ROOT.glob(f"{_PINNED_PREFIX}*")):
+        if not d.is_dir():
+            continue
+        v_file = d / "version.json"
+        if not v_file.is_file():
+            continue
+        try:
+            label = json.loads(v_file.read_text())["version"]
+        except (json.JSONDecodeError, KeyError):
+            continue
+        # Skip duplicates of the default's version.
+        if any(e["label"] == label for e in out):
+            continue
+        key = _version_tuple(label)
+        pinned.append((key, {"label": label, "root": d, "is_default": False}))
+    pinned.sort(key=lambda p: p[0], reverse=True)
+    out.extend(e for _k, e in pinned)
+    return out
+
+
+def _version_tuple(label: str) -> tuple[int, ...]:
+    """Sort key for version labels — leading numeric segments only."""
+    parts = re.findall(r"\d+", label)
+    return tuple(int(p) for p in parts) if parts else (0,)
+
+
 class Schema:
     """Thin reader over a checked-out copy of the ocsf-schema repo."""
 
-    def __init__(self, root: Optional[Path] = None) -> None:
-        self.root = Path(root) if root else default_schema_root()
+    def __init__(
+        self,
+        root: Optional[Path] = None,
+        version: Optional[str] = None,
+    ) -> None:
+        if root is not None:
+            self.root = Path(root)
+        else:
+            self.root = resolve_schema_root(version)
         if not self.root.is_dir():
             raise FileNotFoundError(
                 f"OCSF schema not found at {self.root}. "
