@@ -1,5 +1,109 @@
 # Changelog
 
+## 0.4.0 — 2026-06-03 (Coverage + UX: 5 new sources, schema versioning, two-pane homepage)
+
+Three feature areas, each independently shippable but bundled because
+they were all written in one focused session and share the v0.4 surface.
+
+### New mappings — 38 → 43 sources (`651f746`)
+
+Five high-value SOC additions:
+
+- **`duo_security`** → IAM › Authentication (3002). Duo Authentication
+  Log v2: MFA challenge results (success / denied / fraud / push timeout).
+  `fraud` maps to severity_id 5 (Critical) — strongest signal Duo gives.
+- **`aws_guardduty`** → Findings › Detection (2004). UnauthorizedAccess,
+  CryptoCurrency, Recon, etc. GuardDuty's numeric 1-10 severity is
+  table-lookup'd to OCSF's 1-5 scale (1-3 → Low, 4-6 → Medium, 7-8 →
+  High, 9-10 → Critical).
+- **`microsoft_defender`** → Findings › Detection (2004). Defender for
+  Endpoint alerts via AlertEvidence / Graph Security API shape;
+  status mapping covers `new` / `inProgress` / `resolved`.
+- **`hashicorp_vault`** → Application Activity › API Activity (6003).
+  Vault audit log file/syslog shape — every request/response against a
+  secrets engine path. `request.operation` (read/list/create/update/
+  delete) → OCSF activity_id.
+- **`pagerduty`** → Remediation › Remediation Activity (7001). Webhook
+  event lifecycle (triggered / acknowledged / escalated / resolved).
+  Doubles the Remediation category which previously had a single source.
+
+Real-world event shapes verified against vendor docs; each ships with
+a 10-event sample. Discovery: OCSF 1.9.0-dev's Remediation Activity
+enum tops out at activity_id=5 (no Investigate=9), so PagerDuty's
+triggered/acknowledged map to Detect (5) / Other (99).
+
+### OCSF schema versioning (`bae55cc`)
+
+Until now mappings could only be linted against the single OCSF
+version pinned in the `ocsf-schema/` submodule. v0.4 adds a
+pinned-version cache so the same mapping can be lint-checked against
+older schema releases.
+
+- `Schema(version="1.8.0")` resolves to `<repo>/ocsf-schema-1.8.0/` —
+  a git worktree of the submodule at the v1.8.0 release commit
+  (`3dcb905d`). Same shape for v1.7.0. Default unchanged (current
+  submodule, `1.9.0-dev`).
+- Worktrees share the submodule's `.git` directory — disk impact is
+  a few MB per pinned version, not a full clone.
+- `scripts/setup_schema_versions.sh` is idempotent: re-materialises
+  worktrees after a fresh clone. Add new versions by appending
+  `<v>:<sha>` to its `SCHEMA_VERSIONS` array.
+- `list_available_versions()` auto-discovers sibling `ocsf-schema-*/`
+  dirs and reports each one's declared `version.json` string.
+- Worktrees are gitignored — derived state, not source.
+
+### Web UI: two-pane homepage, Snippets tab, schema dropdown (`4ee65be`)
+
+The homepage flat 38-card grid is replaced by a navigable two-pane
+layout, and each source page gains a per-mapping copy-paste-ready
+code tab.
+
+**Homepage**
+- KPI strip: sources / OCSF categories / classes / lint-clean.
+- Sticky left rail: collapsible OCSF category tree (8 categories →
+  20 classes) with per-node counts. Extensions like `windows_registry`
+  (class_uid 201001) fold into their parent category.
+- Right pane: live search box (matches name / vendor / description)
+  + filtered card grid. Filter state syncs to the URL hash
+  (`#cat=…&cls=…&q=…`) so views are shareable. Narrow viewport
+  collapses to single-column.
+
+**Source page**
+- New **Snippets** tab — per-mapping CLI / Python SDK / PySpark UDF /
+  Pandas code blocks, each with a copy button. Mapping paths and
+  sample filenames templated in so the snippets are ready to paste.
+- **Mapping tab** gains a "Lint against OCSF" dropdown listing every
+  available schema version. Selection POSTs as `schema_version` to
+  `/sources/<n>/save`; the result banner names the version that ran
+  the gate so the user knows which schema rejected/accepted the edit.
+
+**Misc fixes**
+- `/audit` hint text rewritten — previous wording claimed a cap that
+  the template didn't enforce; now reads "showing N events (capped at
+  500)".
+- `/static/main.css` cache-busted with file mtime via a Jinja
+  `asset_v` global — no more `Cmd+Shift+R` after CSS edits.
+
+### Operational hygiene
+
+- `audit/` is now gitignored (`84a57b4`) — per-install runtime state,
+  not source. Existing audit log truncated.
+- `lint_one()` coalesces identical per-event errors into one summary
+  line (`f8c91f4`); 100-event-sample failures drop from ~33 KB to
+  ~700 B per audit record.
+- PLAN.md Bucket C marked done with commit refs (`c1b9806`) — all
+  five production-engineering items had shipped but the scoreboard
+  was stale.
+
+### Tests
+
+51+ web/schema tests green; 326 total in the suite. New test coverage:
+snippets endpoint shape, mapping-editor version dropdown, save against
+pinned schema, missing-version error message, schema registry, pinned
+1.8.0 schema loads cleanly.
+
+---
+
 ## 0.3.1 — 2026-06-02 (Patch: release pipeline + docs polish)
 
 First-run hardening for the v0.3 release pipeline. No code-level
