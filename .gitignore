@@ -39,5 +39,8 @@ _lint_*.classes.txt
 *.phase1.prompt.txt
 *.phase2.prompt.txt
 
+# Runtime audit / telemetry — per-install operational state, not source.
+audit/
+
 # Claude Code local config / skills (user-specific)
 .claude/
