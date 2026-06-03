@@ -110,11 +110,15 @@
           var j = res.json;
           if (res.ok && j.ok && j.mapping) {
             window.__ocsfEditor.setValue(j.mapping);
+            var cacheTag = j.cached
+              ? ' <em>(cached — no API call)</em>'
+              : '';
             aiBox.innerHTML =
               '<div class="ai-ok">' +
               '♻ Fresh draft generated from the pinned sample via <code>' +
               (j.provider || 'provider') + '</code>' +
               (j.schema_version ? ' (OCSF ' + j.schema_version + ')' : '') +
+              cacheTag +
               '. Review the editor and click <strong>Save</strong> when ready.' +
               '</div>';
             // Clear any stale save_result from before the regen.
@@ -153,11 +157,15 @@
             // Stuff the suggestion into Monaco. User still has to Save —
             // that's the linter gate. AI is just a typing accelerator.
             window.__ocsfEditor.setValue(j.mapping);
+            var cacheTag = j.cached
+              ? ' <em>(cached — no API call)</em>'
+              : '';
             aiBox.innerHTML =
               '<div class="ai-ok">' +
               '✨ AI suggested a fix for ' + (j.n_errors_fixed || 0) +
               ' error(s) via <code>' + (j.provider || 'provider') + '</code>' +
               (j.schema_version ? ' (OCSF ' + j.schema_version + ')' : '') +
+              cacheTag +
               '. Review the editor and click <strong>Save</strong> when ready.' +
               '</div>';
           } else {

@@ -270,6 +270,69 @@ def test_regenerate_with_ai_returns_fresh_draft(client, monkeypatch, repo_root):
     assert isinstance(parsed, dict)
 
 
+def test_regenerate_with_ai_second_call_hits_cache(monkeypatch, tmp_path, repo_root):
+    """Identical Regenerate inputs return the previous draft from the in-memory
+    LRU instead of re-calling the LLM. ``cached: true`` flag signals the UI
+    so it can tell the user no API call was made."""
+    monkeypatch.setenv("OCSF_LLM_PROVIDER", "fixture")
+    monkeypatch.setenv(
+        "OCSF_LLM_FIXTURE_DIR", str(repo_root / "tests" / "fixtures" / "llm"),
+    )
+    monkeypatch.setenv("OCSF_LLM_FIXTURE_SOURCE", "cloudtrail_regen")
+
+    # Fresh app instance so the cache starts empty (the session-scoped
+    # ``client`` fixture would share state across tests).
+    import shutil
+    from fastapi.testclient import TestClient
+    isolated = tmp_path / "repo"
+    shutil.copytree(repo_root / "mappings", isolated / "mappings")
+    shutil.copytree(repo_root / "samples", isolated / "samples")
+    shutil.copy(repo_root / "catalog.json", isolated / "catalog.json")
+    iso_client = TestClient(create_app(root=isolated))
+
+    r1 = iso_client.post("/sources/cloudtrail/regenerate-with-ai")
+    assert r1.status_code == 200, r1.text
+    assert r1.json()["cached"] is False  # first call goes to fixture
+
+    r2 = iso_client.post("/sources/cloudtrail/regenerate-with-ai")
+    assert r2.status_code == 200
+    assert r2.json()["cached"] is True   # second call served from LRU
+    assert r2.json()["provider"] == "cache"
+    # Same mapping returned — proves the cache value matches the live result.
+    assert r2.json()["mapping"] == r1.json()["mapping"]
+
+
+def test_fix_with_ai_second_call_hits_cache(monkeypatch, tmp_path, repo_root):
+    """Same content + schema_version + source → second Fix-with-AI returns
+    cached output, no LLM call, no token spend."""
+    monkeypatch.setenv("OCSF_LLM_PROVIDER", "fixture")
+    monkeypatch.setenv(
+        "OCSF_LLM_FIXTURE_DIR", str(repo_root / "tests" / "fixtures" / "llm"),
+    )
+    monkeypatch.setenv("OCSF_LLM_FIXTURE_SOURCE", "cloudtrail_fix")
+
+    import shutil
+    from fastapi.testclient import TestClient
+    isolated = tmp_path / "repo"
+    shutil.copytree(repo_root / "mappings", isolated / "mappings")
+    shutil.copytree(repo_root / "samples", isolated / "samples")
+    shutil.copy(repo_root / "catalog.json", isolated / "catalog.json")
+    iso_client = TestClient(create_app(root=isolated))
+
+    broken = (
+        '{"parser":"json",'
+        '"classes":{"authentication":{"mapping":{"class_uid":{"const":3002}}}}}'
+    )
+    r1 = iso_client.post("/sources/cloudtrail/fix-with-ai", data={"content": broken})
+    assert r1.status_code == 200
+    assert r1.json()["cached"] is False
+
+    r2 = iso_client.post("/sources/cloudtrail/fix-with-ai", data={"content": broken})
+    assert r2.status_code == 200
+    assert r2.json()["cached"] is True
+    assert r2.json()["mapping"] == r1.json()["mapping"]
+
+
 def test_regenerate_with_ai_no_provider_503(client, monkeypatch):
     monkeypatch.delenv("OCSF_LLM_PROVIDER", raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)

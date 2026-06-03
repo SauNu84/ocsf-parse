@@ -146,6 +146,31 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
         _schema_cache[version] = s
         return s
 
+    # ----- LLM result cache ----------------------------------------------
+    # Key: (op, source, content_hash, schema_version). LRU-evict at cap.
+    # Identical inputs to Regenerate/Fix-with-AI return the previous LLM
+    # result instantly — saves OpenAI/Anthropic spend during iteration.
+    # Cache lives for the lifetime of the server process; restart wipes it.
+    from collections import OrderedDict as _OrderedDict
+    _LLM_CACHE_CAP = 16
+    _llm_cache: "_OrderedDict[tuple, dict]" = _OrderedDict()
+
+    def _content_hash(s: str) -> str:
+        import hashlib
+        return hashlib.sha256(s.encode("utf-8", errors="replace")).hexdigest()[:16]
+
+    def _llm_cache_get(key: tuple) -> Optional[dict]:
+        if key in _llm_cache:
+            _llm_cache.move_to_end(key)
+            return _llm_cache[key]
+        return None
+
+    def _llm_cache_put(key: tuple, value: dict) -> None:
+        _llm_cache[key] = value
+        _llm_cache.move_to_end(key)
+        while len(_llm_cache) > _LLM_CACHE_CAP:
+            _llm_cache.popitem(last=False)
+
     # ----- helpers --------------------------------------------------------
 
     def _row_for_card(entry: dict, registry_by_name: dict) -> dict:
@@ -594,7 +619,22 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
                 ln for ln in sample_path.read_text().splitlines() if ln.strip()
             ][:5]
 
-        # 4. Call the LLM. Surface every failure mode as a clear string.
+        # 4. Cache lookup — keyed on the editor buffer content + errors so
+        #    repeated clicks on the SAME broken mapping return instantly
+        #    without re-spending API tokens. (User typing → new key → miss.)
+        cache_key = ("fix", name, _content_hash(content), target_schema.version())
+        cached = _llm_cache_get(cache_key)
+        if cached is not None:
+            return JSONResponse({
+                "ok": True,
+                "mapping": json.dumps(cached, indent=2),
+                "n_errors_fixed": len(result["errors"]),
+                "schema_version": target_schema.version(),
+                "provider": "cache",
+                "cached": True,
+            })
+
+        # 5. Call the LLM. Surface every failure mode as a clear string.
         try:
             provider = get_provider()
             fixed = fix_mapping(
@@ -625,12 +665,14 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
                 status_code=502,
             )
 
+        _llm_cache_put(cache_key, fixed)
         return JSONResponse({
             "ok": True,
             "mapping": json.dumps(fixed, indent=2),
             "n_errors_fixed": len(result["errors"]),
             "schema_version": target_schema.version(),
             "provider": getattr(provider, "name", "unknown"),
+            "cached": False,
         })
 
     @app.post("/sources/{name}/regenerate-with-ai")
@@ -671,6 +713,26 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
         except FileNotFoundError as e:
             return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
 
+        # Cache lookup — key on the pinned sample's content so an unchanged
+        # sample returns the prior draft for free. Editing the sample (or
+        # bumping the schema version) misses and re-calls the LLM.
+        sample_bytes = sample_path.read_bytes()
+        cache_key = (
+            "regenerate",
+            name,
+            _content_hash(sample_bytes.decode("utf-8", errors="replace")),
+            target_schema.version(),
+        )
+        cached = _llm_cache_get(cache_key)
+        if cached is not None:
+            return JSONResponse({
+                "ok": True,
+                "mapping": json.dumps(cached, indent=2),
+                "schema_version": target_schema.version(),
+                "provider": "cache",
+                "cached": True,
+            })
+
         try:
             provider = get_provider()
             fresh = generate(sample_path, name, provider=provider, schema=target_schema)
@@ -690,11 +752,13 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
                 status_code=502,
             )
 
+        _llm_cache_put(cache_key, fresh)
         return JSONResponse({
             "ok": True,
             "mapping": json.dumps(fresh, indent=2),
             "schema_version": target_schema.version(),
             "provider": getattr(provider, "name", "unknown"),
+            "cached": False,
         })
 
     @app.get("/sources/{name}/snippets", response_class=HTMLResponse)
