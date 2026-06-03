@@ -477,6 +477,40 @@ footer {
   height: 540px;
   border: 1px solid var(--border);
   border-radius: 4px;
+  position: relative;
+}
+
+/* Pre-paint placeholder — Monaco loads its ~5 MB JS bundle from
+   jsdelivr; on a cold browser cache that takes seconds. Show a spinner
+   instead of a blank rectangle. monaco.editor.create() replaces the
+   host's children on first paint, so the placeholder auto-vanishes. */
+.monaco-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--fg-muted);
+  font-size: 13px;
+  background: #f8f9fa;
+}
+.monaco-loading small {
+  font-size: 11px;
+  opacity: 0.8;
+  margin-left: 6px;
+}
+.monaco-loading-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: monaco-spin 0.7s linear infinite;
+}
+@keyframes monaco-spin {
+  to { transform: rotate(360deg); }
 }
 
 .save-result { margin-bottom: 8px; }

@@ -7,7 +7,12 @@
     the lint fails the file isn't written.
   </p>
   <div id="wizard-save-result" class="save-result"></div>
-  <div id="monaco-host" data-initial="{{ draft_json|e }}"></div>
+  <div id="monaco-host" data-initial="{{ draft_json|e }}">
+    <div class="monaco-loading" aria-live="polite">
+      <span class="monaco-loading-spinner" aria-hidden="true"></span>
+      <span class="monaco-loading-text">Loading editor… <small>(downloading Monaco JS bundle on first visit)</small></span>
+    </div>
+  </div>
   <div class="wizard-actions">
     <button class="btn-primary" onclick="ocsfWizardSave('{{ source_name }}')">Save mapping</button>
   </div>
