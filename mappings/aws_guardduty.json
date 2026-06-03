@@ -1,0 +1,145 @@
+{
+  "source_name": "aws_guardduty",
+  "display_name": "AWS GuardDuty",
+  "vendor": "AWS",
+  "priority": "critical",
+  "description": "AWS GuardDuty findings (UnauthorizedAccess, CryptoCurrency, Recon, etc.) with 1-10 → OCSF 1-5 severity mapping.",
+  "mapping_version": "1.0.0",
+  "parser": "json",
+  "routing": {
+    "field": "$.type",
+    "rules": [
+      {
+        "default": true,
+        "class": "detection_finding"
+      }
+    ]
+  },
+  "classes": {
+    "detection_finding": {
+      "mapping": {
+        "metadata.version": {
+          "const": "1.9.0-dev"
+        },
+        "metadata.product.name": {
+          "const": "Amazon GuardDuty"
+        },
+        "metadata.product.vendor_name": {
+          "const": "AWS"
+        },
+        "metadata.product.feature.name": {
+          "const": "GuardDuty"
+        },
+        "metadata.uid": {
+          "path": "$.id"
+        },
+        "metadata.logged_time": {
+          "time": "$.updatedAt",
+          "format": "iso8601"
+        },
+        "time": {
+          "time": "$.createdAt",
+          "format": "iso8601"
+        },
+        "category_uid": {
+          "const": 2
+        },
+        "category_name": {
+          "const": "Findings"
+        },
+        "class_uid": {
+          "const": 2004
+        },
+        "class_name": {
+          "const": "Detection Finding"
+        },
+        "activity_id": {
+          "const": 1
+        },
+        "activity_name": {
+          "const": "Create"
+        },
+        "type_uid": {
+          "expr": "class_uid * 100 + activity_id"
+        },
+        "severity_id": {
+          "lookup": "$.severity",
+          "table": {
+            "1": 2,
+            "2": 2,
+            "3": 2,
+            "4": 3,
+            "5": 3,
+            "6": 3,
+            "7": 4,
+            "8": 4,
+            "9": 5,
+            "10": 5
+          },
+          "default": 1
+        },
+        "severity": {
+          "lookup": "$.severity",
+          "table": {
+            "1": "Low",
+            "2": "Low",
+            "3": "Low",
+            "4": "Medium",
+            "5": "Medium",
+            "6": "Medium",
+            "7": "High",
+            "8": "High",
+            "9": "Critical",
+            "10": "Critical"
+          },
+          "default": "Informational"
+        },
+        "status_id": {
+          "const": 1
+        },
+        "status": {
+          "const": "New"
+        },
+        "finding_info.uid": {
+          "path": "$.id"
+        },
+        "finding_info.title": {
+          "path": "$.title"
+        },
+        "finding_info.desc": {
+          "path": "$.description"
+        },
+        "finding_info.types": {
+          "const": ["Cloud Detection"]
+        },
+        "finding_info.src_url": {
+          "path": "$.arn"
+        },
+        "cloud.provider": {
+          "const": "AWS"
+        },
+        "cloud.account.uid": {
+          "path": "$.accountId"
+        },
+        "cloud.region": {
+          "path": "$.region"
+        },
+        "resources": {
+          "for_each": "$.resources",
+          "as": "r",
+          "map": {
+            "uid": {
+              "path": "$.r.uid"
+            },
+            "type": {
+              "path": "$.r.type"
+            }
+          }
+        },
+        "raw_data": {
+          "raw": true
+        }
+      }
+    }
+  }
+}

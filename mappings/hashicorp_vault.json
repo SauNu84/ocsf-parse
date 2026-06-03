@@ -1,0 +1,144 @@
+{
+  "source_name": "hashicorp_vault",
+  "display_name": "HashiCorp Vault",
+  "vendor": "HashiCorp",
+  "priority": "high",
+  "description": "Vault audit log (file/syslog backend): every request/response against a secrets engine path.",
+  "mapping_version": "1.0.0",
+  "parser": "json",
+  "routing": {
+    "field": "$.type",
+    "rules": [
+      {
+        "default": true,
+        "class": "api_activity"
+      }
+    ]
+  },
+  "classes": {
+    "api_activity": {
+      "mapping": {
+        "metadata.version": {
+          "const": "1.9.0-dev"
+        },
+        "metadata.product.name": {
+          "const": "HashiCorp Vault"
+        },
+        "metadata.product.vendor_name": {
+          "const": "HashiCorp"
+        },
+        "metadata.product.feature.name": {
+          "const": "Audit"
+        },
+        "metadata.uid": {
+          "path": "$.request.id"
+        },
+        "metadata.logged_time": {
+          "time": "$.time",
+          "format": "iso8601"
+        },
+        "time": {
+          "time": "$.time",
+          "format": "iso8601"
+        },
+        "category_uid": {
+          "const": 6
+        },
+        "category_name": {
+          "const": "Application Activity"
+        },
+        "class_uid": {
+          "const": 6003
+        },
+        "class_name": {
+          "const": "API Activity"
+        },
+        "activity_id": {
+          "lookup": "$.request.operation",
+          "table": {
+            "create": 1,
+            "read": 2,
+            "list": 2,
+            "update": 3,
+            "delete": 4,
+            "revoke": 4
+          },
+          "default": 99
+        },
+        "activity_name": {
+          "lookup": "$.request.operation",
+          "table": {
+            "create": "Create",
+            "read": "Read",
+            "list": "Read",
+            "update": "Update",
+            "delete": "Delete",
+            "revoke": "Delete"
+          },
+          "default": "Other"
+        },
+        "type_uid": {
+          "expr": "class_uid * 100 + activity_id"
+        },
+        "severity_id": {
+          "const": 1
+        },
+        "severity": {
+          "const": "Informational"
+        },
+        "status_id": {
+          "lookup": "$.type",
+          "table": {
+            "request": 99,
+            "response": 1
+          },
+          "default": 0
+        },
+        "status": {
+          "lookup": "$.type",
+          "table": {
+            "request": "Other",
+            "response": "Success"
+          },
+          "default": "Unknown"
+        },
+        "status_detail": {
+          "path": "$.error"
+        },
+        "actor.user.name": {
+          "path": "$.auth.display_name"
+        },
+        "actor.user.uid": {
+          "path": "$.auth.entity_id"
+        },
+        "actor.user.type": {
+          "path": "$.auth.token_type"
+        },
+        "src_endpoint.ip": {
+          "path": "$.request.remote_address"
+        },
+        "api.operation": {
+          "path": "$.request.operation"
+        },
+        "api.service.name": {
+          "const": "vault"
+        },
+        "api.request.uid": {
+          "path": "$.request.id"
+        },
+        "api.request.data": {
+          "path": "$.request.path"
+        },
+        "api.response.data": {
+          "path": "$.response.data"
+        },
+        "api.response.error": {
+          "path": "$.error"
+        },
+        "raw_data": {
+          "raw": true
+        }
+      }
+    }
+  }
+}

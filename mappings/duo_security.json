@@ -1,0 +1,172 @@
+{
+  "source_name": "duo_security",
+  "display_name": "Duo Security",
+  "vendor": "Cisco",
+  "priority": "high",
+  "description": "Duo Authentication Log v2: MFA challenge results (success / fraud / denied / push timeout).",
+  "mapping_version": "1.0.0",
+  "parser": "json",
+  "routing": {
+    "field": "$.event_type",
+    "rules": [
+      {
+        "matches": ["authentication"],
+        "class": "authentication"
+      },
+      {
+        "default": true,
+        "class": "authentication"
+      }
+    ]
+  },
+  "classes": {
+    "authentication": {
+      "mapping": {
+        "metadata.version": {
+          "const": "1.9.0-dev"
+        },
+        "metadata.product.name": {
+          "const": "Duo Security"
+        },
+        "metadata.product.vendor_name": {
+          "const": "Cisco"
+        },
+        "metadata.product.feature.name": {
+          "const": "Duo MFA"
+        },
+        "metadata.uid": {
+          "path": "$.txid"
+        },
+        "metadata.logged_time": {
+          "time": "$.isotimestamp",
+          "format": "iso8601"
+        },
+        "time": {
+          "time": "$.isotimestamp",
+          "format": "iso8601"
+        },
+        "category_uid": {
+          "const": 3
+        },
+        "category_name": {
+          "const": "Identity & Access Management"
+        },
+        "class_uid": {
+          "const": 3002
+        },
+        "class_name": {
+          "const": "Authentication"
+        },
+        "activity_id": {
+          "const": 1
+        },
+        "activity_name": {
+          "const": "Logon"
+        },
+        "type_uid": {
+          "expr": "class_uid * 100 + activity_id"
+        },
+        "severity_id": {
+          "lookup": "$.result",
+          "table": {
+            "success": 1,
+            "denied": 3,
+            "fraud": 5,
+            "error": 3
+          },
+          "default": 1
+        },
+        "severity": {
+          "lookup": "$.result",
+          "table": {
+            "success": "Informational",
+            "denied": "Medium",
+            "fraud": "Critical",
+            "error": "Medium"
+          },
+          "default": "Informational"
+        },
+        "status_id": {
+          "lookup": "$.result",
+          "table": {
+            "success": 1,
+            "denied": 2,
+            "fraud": 2,
+            "error": 0
+          },
+          "default": 0
+        },
+        "status": {
+          "lookup": "$.result",
+          "table": {
+            "success": "Success",
+            "denied": "Failure",
+            "fraud": "Failure",
+            "error": "Unknown"
+          },
+          "default": "Unknown"
+        },
+        "status_detail": {
+          "path": "$.reason"
+        },
+        "user.name": {
+          "path": "$.user.name"
+        },
+        "user.uid": {
+          "path": "$.user.key"
+        },
+        "user.email_addr": {
+          "path": "$.email"
+        },
+        "actor.user.name": {
+          "path": "$.user.name"
+        },
+        "actor.user.uid": {
+          "path": "$.user.key"
+        },
+        "src_endpoint.ip": {
+          "path": "$.access_device.ip"
+        },
+        "src_endpoint.hostname": {
+          "path": "$.access_device.hostname"
+        },
+        "src_endpoint.os.name": {
+          "path": "$.access_device.os"
+        },
+        "src_endpoint.os.version": {
+          "path": "$.access_device.os_version"
+        },
+        "mfa_device.ip": {
+          "path": "$.auth_device.ip"
+        },
+        "mfa_device.name": {
+          "path": "$.auth_device.name"
+        },
+        "service.name": {
+          "path": "$.application.name"
+        },
+        "service.uid": {
+          "path": "$.application.key"
+        },
+        "is_mfa": {
+          "const": true
+        },
+        "is_remote": {
+          "const": true
+        },
+        "auth_protocol": {
+          "const": "Duo MFA"
+        },
+        "auth_factor": {
+          "path": "$.factor"
+        },
+        "session.uid": {
+          "path": "$.txid"
+        },
+        "raw_data": {
+          "raw": true
+        }
+      }
+    }
+  }
+}

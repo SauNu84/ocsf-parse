@@ -1,0 +1,141 @@
+{
+  "source_name": "microsoft_defender",
+  "display_name": "Microsoft Defender for Endpoint",
+  "vendor": "Microsoft",
+  "priority": "critical",
+  "description": "Defender for Endpoint alerts (AlertEvidence / DeviceAlertEvents / Graph Security API).",
+  "mapping_version": "1.0.0",
+  "parser": "json",
+  "routing": {
+    "field": "$.category",
+    "rules": [
+      {
+        "default": true,
+        "class": "detection_finding"
+      }
+    ]
+  },
+  "classes": {
+    "detection_finding": {
+      "mapping": {
+        "metadata.version": {
+          "const": "1.9.0-dev"
+        },
+        "metadata.product.name": {
+          "const": "Microsoft Defender for Endpoint"
+        },
+        "metadata.product.vendor_name": {
+          "const": "Microsoft"
+        },
+        "metadata.product.feature.name": {
+          "const": "Defender XDR"
+        },
+        "metadata.uid": {
+          "path": "$.alertId"
+        },
+        "metadata.logged_time": {
+          "time": "$.lastUpdateDateTime",
+          "format": "iso8601"
+        },
+        "time": {
+          "time": "$.createdDateTime",
+          "format": "iso8601"
+        },
+        "category_uid": {
+          "const": 2
+        },
+        "category_name": {
+          "const": "Findings"
+        },
+        "class_uid": {
+          "const": 2004
+        },
+        "class_name": {
+          "const": "Detection Finding"
+        },
+        "activity_id": {
+          "const": 1
+        },
+        "activity_name": {
+          "const": "Create"
+        },
+        "type_uid": {
+          "expr": "class_uid * 100 + activity_id"
+        },
+        "severity_id": {
+          "lookup": "$.severity",
+          "table": {
+            "Informational": 1,
+            "Low": 2,
+            "Medium": 3,
+            "High": 4
+          },
+          "default": 1
+        },
+        "severity": {
+          "path": "$.severity"
+        },
+        "status_id": {
+          "lookup": "$.status",
+          "table": {
+            "new": 1,
+            "inProgress": 2,
+            "resolved": 4
+          },
+          "default": 1
+        },
+        "status": {
+          "lookup": "$.status",
+          "table": {
+            "new": "New",
+            "inProgress": "In Progress",
+            "resolved": "Resolved"
+          },
+          "default": "New"
+        },
+        "finding_info.uid": {
+          "path": "$.alertId"
+        },
+        "finding_info.title": {
+          "path": "$.title"
+        },
+        "finding_info.desc": {
+          "path": "$.description"
+        },
+        "finding_info.types": {
+          "const": ["Endpoint Detection"]
+        },
+        "device.hostname": {
+          "path": "$.computerDnsName"
+        },
+        "device.uid": {
+          "path": "$.machineId"
+        },
+        "device.type_id": {
+          "const": 5
+        },
+        "actor.user.name": {
+          "path": "$.accountName"
+        },
+        "actor.process.name": {
+          "path": "$.fileName"
+        },
+        "actor.process.file.hashes": {
+          "for_each": "$.fileSha256List",
+          "as": "h",
+          "map": {
+            "algorithm": {
+              "const": "SHA-256"
+            },
+            "value": {
+              "path": "$.h"
+            }
+          }
+        },
+        "raw_data": {
+          "raw": true
+        }
+      }
+    }
+  }
+}

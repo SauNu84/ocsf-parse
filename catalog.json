@@ -66,6 +66,22 @@
       "description": "Falcon Streaming API detection events (DetectName, Tactic, Technique)."
     },
     {
+      "source": "aws_guardduty",
+      "display_name": "AWS GuardDuty",
+      "vendor": "AWS",
+      "ocsf": { "category_uid": 2, "category_name": "Findings", "class_uid": 2004, "class_name": "Detection Finding" },
+      "priority": "critical",
+      "description": "AWS GuardDuty findings (UnauthorizedAccess, CryptoCurrency, Recon, etc.); 1-10 severity mapped to OCSF 1-5."
+    },
+    {
+      "source": "microsoft_defender",
+      "display_name": "Microsoft Defender for Endpoint",
+      "vendor": "Microsoft",
+      "ocsf": { "category_uid": 2, "category_name": "Findings", "class_uid": 2004, "class_name": "Detection Finding" },
+      "priority": "critical",
+      "description": "Defender for Endpoint alerts (AlertEvidence / DeviceAlertEvents / Graph Security API)."
+    },
+    {
       "source": "splunk_es_alert",
       "display_name": "Splunk ES Alert",
       "vendor": "Splunk",
@@ -96,6 +112,14 @@
       "ocsf": { "category_uid": 3, "category_name": "Identity & Access Management", "class_uid": 3002, "class_name": "Authentication" },
       "priority": "high",
       "description": "Okta System Log: user.session.start and application.user_membership.add/remove."
+    },
+    {
+      "source": "duo_security",
+      "display_name": "Duo Security",
+      "vendor": "Cisco",
+      "ocsf": { "category_uid": 3, "category_name": "Identity & Access Management", "class_uid": 3002, "class_name": "Authentication" },
+      "priority": "high",
+      "description": "Duo Authentication Log v2: MFA challenge results (success / fraud / denied / push timeout)."
     },
     {
       "source": "google_workspace",
@@ -274,6 +298,14 @@
       "description": "Kubernetes API server audit log (audit.k8s.io/v1 Event). Verbs map to api_activity.activity_id."
     },
     {
+      "source": "hashicorp_vault",
+      "display_name": "HashiCorp Vault",
+      "vendor": "HashiCorp",
+      "ocsf": { "category_uid": 6, "category_name": "Application Activity", "class_uid": 6003, "class_name": "API Activity" },
+      "priority": "high",
+      "description": "Vault audit log (file/syslog backend): every request/response against a secrets engine path."
+    },
+    {
       "source": "windows_registry",
       "display_name": "Windows Sysmon Registry Activity",
       "vendor": "Microsoft",
@@ -304,6 +336,14 @@
       "ocsf": { "category_uid": 7, "category_name": "Remediation", "class_uid": 7001, "class_name": "Remediation Activity" },
       "priority": "medium",
       "description": "Generic SOAR / IR playbook execution log (Splunk SOAR / Tines / XSOAR). Closes OCSF category 7."
+    },
+    {
+      "source": "pagerduty",
+      "display_name": "PagerDuty Incidents",
+      "vendor": "PagerDuty",
+      "ocsf": { "category_uid": 7, "category_name": "Remediation", "class_uid": 7001, "class_name": "Remediation Activity" },
+      "priority": "medium",
+      "description": "PagerDuty webhook events (incident.triggered/acknowledged/resolved/escalated) → remediation lifecycle."
     },
     {
       "source": "drone_telemetry",

@@ -1,0 +1,133 @@
+{
+  "source_name": "pagerduty",
+  "display_name": "PagerDuty Incidents",
+  "vendor": "PagerDuty",
+  "priority": "medium",
+  "description": "PagerDuty webhook events (incident.triggered/acknowledged/resolved/escalated) → remediation lifecycle.",
+  "mapping_version": "1.0.0",
+  "parser": "json",
+  "routing": {
+    "field": "$.event.event_type",
+    "rules": [
+      {
+        "default": true,
+        "class": "remediation_activity"
+      }
+    ]
+  },
+  "classes": {
+    "remediation_activity": {
+      "mapping": {
+        "metadata.version": {
+          "const": "1.9.0-dev"
+        },
+        "metadata.product.name": {
+          "const": "PagerDuty"
+        },
+        "metadata.product.vendor_name": {
+          "const": "PagerDuty"
+        },
+        "metadata.uid": {
+          "path": "$.event.id"
+        },
+        "metadata.logged_time": {
+          "time": "$.event.occurred_at",
+          "format": "iso8601"
+        },
+        "time": {
+          "time": "$.event.occurred_at",
+          "format": "iso8601"
+        },
+        "category_uid": {
+          "const": 7
+        },
+        "category_name": {
+          "const": "Remediation"
+        },
+        "class_uid": {
+          "const": 7001
+        },
+        "class_name": {
+          "const": "Remediation Activity"
+        },
+        "activity_id": {
+          "lookup": "$.event.event_type",
+          "table": {
+            "incident.triggered": 5,
+            "incident.acknowledged": 99,
+            "incident.escalated": 99,
+            "incident.resolved": 3,
+            "incident.reassigned": 99
+          },
+          "default": 0
+        },
+        "activity_name": {
+          "lookup": "$.event.event_type",
+          "table": {
+            "incident.triggered": "Detect",
+            "incident.acknowledged": "Other",
+            "incident.escalated": "Other",
+            "incident.resolved": "Restore",
+            "incident.reassigned": "Other"
+          },
+          "default": "Unknown"
+        },
+        "type_uid": {
+          "expr": "class_uid * 100 + activity_id"
+        },
+        "severity_id": {
+          "lookup": "$.event.data.urgency",
+          "table": {
+            "high": 4,
+            "low": 2
+          },
+          "default": 3
+        },
+        "severity": {
+          "lookup": "$.event.data.urgency",
+          "table": {
+            "high": "High",
+            "low": "Low"
+          },
+          "default": "Medium"
+        },
+        "status_id": {
+          "lookup": "$.event.data.status",
+          "table": {
+            "triggered": 0,
+            "acknowledged": 0,
+            "resolved": 1
+          },
+          "default": 0
+        },
+        "status": {
+          "lookup": "$.event.data.status",
+          "table": {
+            "triggered": "Other",
+            "acknowledged": "Other",
+            "resolved": "Success"
+          },
+          "default": "Unknown"
+        },
+        "command_uid": {
+          "path": "$.event.data.id"
+        },
+        "actor.user.name": {
+          "path": "$.event.agent.summary"
+        },
+        "actor.user.uid": {
+          "path": "$.event.agent.id"
+        },
+        "dst_endpoint.hostname": {
+          "path": "$.event.data.service.summary"
+        },
+        "message": {
+          "path": "$.event.data.title"
+        },
+        "raw_data": {
+          "raw": true
+        }
+      }
+    }
+  }
+}
