@@ -19,6 +19,12 @@
             title="Available after a failed save — asks the configured LLM provider to repair the mapping against the lint errors.">
       ✨ Fix with AI
     </button>
+    <button id="btn-regenerate-with-ai"
+            class="btn-secondary"
+            onclick="ocsfRegenerateWithAI('{{ name }}')"
+            title="Discards the current mapping and asks the configured LLM provider to draft a fresh one from the pinned sample.">
+      ♻ Regenerate
+    </button>
     <button class="btn-primary" onclick="ocsfSaveMapping('{{ name }}')">Save</button>
   </div>
   <div id="save-result" class="save-result"></div>
@@ -75,6 +81,50 @@
           document.getElementById('save-result').innerHTML =
             '<div class="save-error">network error: ' + err + '</div>';
           _setAiButtonEnabled(true);  // still let the user try AI fix
+        });
+    };
+
+    window.ocsfRegenerateWithAI = function(name) {
+      if (!window.__ocsfEditor) return;
+      if (!window.confirm(
+        "Discard the current mapping and re-draft it from the pinned sample?\n\n" +
+        "Your unsaved edits will be lost. The new draft replaces the editor buffer; " +
+        "you'll need to click Save before it lands on disk."
+      )) return;
+      var btn = document.getElementById('btn-regenerate-with-ai');
+      var aiBox = document.getElementById('ai-result');
+      var fd = new FormData();
+      var pick = document.getElementById('schema-version-select');
+      if (pick) fd.append('schema_version', pick.value || '');
+      if (btn) { btn.disabled = true; btn.textContent = '♻ Drafting…'; }
+      aiBox.innerHTML = '';
+      fetch('/sources/' + encodeURIComponent(name) + '/regenerate-with-ai',
+            { method: 'POST', body: fd })
+        .then(function(r) { return r.json().then(function(j) { return { json: j, ok: r.ok }; }); })
+        .then(function(res) {
+          var j = res.json;
+          if (res.ok && j.ok && j.mapping) {
+            window.__ocsfEditor.setValue(j.mapping);
+            aiBox.innerHTML =
+              '<div class="ai-ok">' +
+              '♻ Fresh draft generated from the pinned sample via <code>' +
+              (j.provider || 'provider') + '</code>' +
+              (j.schema_version ? ' (OCSF ' + j.schema_version + ')' : '') +
+              '. Review the editor and click <strong>Save</strong> when ready.' +
+              '</div>';
+            // Clear any stale save_result from before the regen.
+            document.getElementById('save-result').innerHTML = '';
+            _setAiButtonEnabled(false);
+          } else {
+            var msg = (j && j.error) || ('HTTP ' + (res.ok ? '200' : 'error'));
+            aiBox.innerHTML = '<div class="ai-error">♻ ' + msg + '</div>';
+          }
+        })
+        .catch(function(err) {
+          aiBox.innerHTML = '<div class="ai-error">network error: ' + err + '</div>';
+        })
+        .finally(function() {
+          if (btn) { btn.textContent = '♻ Regenerate'; btn.disabled = false; }
         });
     };
 

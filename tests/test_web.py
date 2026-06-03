@@ -250,6 +250,41 @@ def test_fix_with_ai_404_for_unknown_source(client):
     assert r.status_code == 404
 
 
+def test_regenerate_with_ai_returns_fresh_draft(client, monkeypatch, repo_root):
+    """End-to-end regenerate: POST hits the two-phase generator via the
+    FixtureProvider and returns the canned mapping as a JSON string."""
+    monkeypatch.setenv("OCSF_LLM_PROVIDER", "fixture")
+    monkeypatch.setenv(
+        "OCSF_LLM_FIXTURE_DIR", str(repo_root / "tests" / "fixtures" / "llm"),
+    )
+    monkeypatch.setenv("OCSF_LLM_FIXTURE_SOURCE", "cloudtrail_regen")
+
+    r = client.post("/sources/cloudtrail/regenerate-with-ai")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["ok"] is True
+    assert body["provider"] == "fixture"
+    # Same shape as fix-with-ai — frontend stuffs body["mapping"] into Monaco.
+    import json as _j
+    parsed = _j.loads(body["mapping"])
+    assert isinstance(parsed, dict)
+
+
+def test_regenerate_with_ai_no_provider_503(client, monkeypatch):
+    monkeypatch.delenv("OCSF_LLM_PROVIDER", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    r = client.post("/sources/cloudtrail/regenerate-with-ai")
+    assert r.status_code == 503
+    body = r.json()
+    assert body["code"] == "no_provider"
+
+
+def test_regenerate_with_ai_404_for_unknown_source(client):
+    r = client.post("/sources/totally_made_up/regenerate-with-ai")
+    assert r.status_code == 404
+
+
 def test_fix_with_ai_rejects_clean_mapping(client, monkeypatch, repo_root):
     """Nothing-to-fix path: if the user clicks the button while the
     current buffer already lints clean, return a clear message instead

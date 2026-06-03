@@ -633,6 +633,70 @@ def create_app(root: Optional[Path | str] = None) -> FastAPI:
             "provider": getattr(provider, "name", "unknown"),
         })
 
+    @app.post("/sources/{name}/regenerate-with-ai")
+    def source_regenerate_with_ai(
+        name: str,
+        schema_version: str = Form(""),
+    ) -> JSONResponse:
+        """Discard the current mapping and ask the LLM to draft a fresh one
+        from the pinned sample. Mirrors the /new wizard's generate flow,
+        just bound to an existing source's sample instead of an upload.
+
+        Like fix-with-ai, the result is returned as a JSON string the
+        frontend stuffs into Monaco — the user still has to click Save,
+        which re-runs the linter as the final gate.
+        """
+        from ocsf_mapper.generate import generate
+        from ocsf_mapper.providers import get_provider
+
+        path = mappings_dir / f"{name}.json"
+        if not path.exists():
+            return JSONResponse(
+                {"ok": False, "error": f"unknown source: {name}"},
+                status_code=404,
+            )
+
+        sample_path = _find_sample_path(name)
+        if sample_path is None or not sample_path.exists():
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "error": f"no sample found for {name!r} — can't regenerate without one.",
+                },
+                status_code=400,
+            )
+
+        try:
+            target_schema = _get_schema(schema_version or None)
+        except FileNotFoundError as e:
+            return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+
+        try:
+            provider = get_provider()
+            fresh = generate(sample_path, name, provider=provider, schema=target_schema)
+        except RuntimeError as e:
+            return JSONResponse(
+                {"ok": False, "error": str(e), "code": "no_provider"},
+                status_code=503,
+            )
+        except (json.JSONDecodeError, ValueError) as e:
+            return JSONResponse(
+                {"ok": False, "error": f"LLM response was not valid JSON: {e}"},
+                status_code=502,
+            )
+        except Exception as e:
+            return JSONResponse(
+                {"ok": False, "error": f"LLM call failed: {e!r}"},
+                status_code=502,
+            )
+
+        return JSONResponse({
+            "ok": True,
+            "mapping": json.dumps(fresh, indent=2),
+            "schema_version": target_schema.version(),
+            "provider": getattr(provider, "name", "unknown"),
+        })
+
     @app.get("/sources/{name}/snippets", response_class=HTMLResponse)
     def source_snippets(name: str, request: Request) -> HTMLResponse:
         cfg = _mapping_or_404(name)
