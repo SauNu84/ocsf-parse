@@ -1,5 +1,67 @@
 # Changelog
 
+## 0.4.2 — 2026-06-03 (Fix-with-AI + README screenshots)
+
+Two user-visible additions on top of v0.4.1.
+
+### ✨ Fix-with-AI button in the Mapping tab (`201509b`)
+
+The Mapping-tab toolbar gains a third button next to **Save**:
+**✨ Fix with AI**. It's disabled by default; after a save fails the
+linter, it enables.
+
+Click it → the server posts the current Monaco buffer + the chosen
+schema version to `/sources/<n>/fix-with-ai`. The endpoint re-runs
+the linter to capture the current errors, calls the configured LLM
+provider (Anthropic / OpenAI / Fixture per `get_provider()`) with
+the current mapping + errors + first 5 sample events + the
+required-attribute list for the target class(es), and returns the
+repaired JSON. The frontend stuffs it into Monaco; the user still
+hits **Save**, which re-runs the linter as the final gate.
+
+Why the gate matters: AI is a typing accelerator, not an oracle. The
+human reads the diff and the linter validates against the real schema
+before anything lands on disk.
+
+New SDK surface — `ocsf_mapper.generate.fix_mapping(current, errors,
+sample_lines, *, provider, schema)`. Prompt caps error list at 30
+lines and schema context at required + recommended attributes so
+token spend stays bounded.
+
+UX details:
+- Without a key configured the button still works, but the LLM call
+  returns 503 with `code=no_provider`; the UI surfaces a friendly
+  orange notice (*"No LLM key found. Set ANTHROPIC_API_KEY or
+  OPENAI_API_KEY, or OCSF_LLM_PROVIDER=fixture for offline use."*).
+- Schema-version aware: if you've picked OCSF 1.8.0 in the "Lint
+  against OCSF" dropdown, the fix call uses 1.8.0's required-attr
+  list (so the AI doesn't suggest 1.9.0-only fields).
+- Invalid JSON in the buffer short-circuits before the LLM is called
+  — *"Fix the syntax first"*. No wasted tokens.
+
+### README screenshots + capture script (`d750a95`)
+
+The README now embeds five UI captures alongside the relevant
+sections:
+
+- Homepage (two-pane catalog) under "What it does".
+- Snippets tab + Mapping tab in the Web UI section.
+- Audit log in a new Audit-trail subsection.
+- (Sample-tab capture also produced; held in reserve for the Pages
+  landing page.)
+
+`scripts/capture_screenshots.py` is a Playwright headless harness
+that re-shoots all five in one command. Seeds the audit log via the
+HTTP API before the audit capture so the screenshot isn't an empty
+state. Clips the Mapping capture to the toolbar since the jsdelivr
+Monaco bundle isn't always reachable in headless.
+
+Also folded in (README only): refresh "38 → 43 mappings", add the
+five new sources to the OCSF category table, bump Docker tag
+0.3.0 → 0.4.1, drop the stale "once 0.3.0 ships" PyPI heading.
+
+---
+
 ## 0.4.1 — 2026-06-03 (Patch: first PyPI release of the v0.4 series)
 
 CI-only patch. No code-level behaviour changes; same feature surface
