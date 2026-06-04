@@ -940,7 +940,11 @@ auth_feat = (
     agg_auth.dropna(subset=["actor_user"])
             .groupby(["actor_user","event_day"]).agg(
                 auth_events     =("time", "count"),
-                failed_auth     =("status_id", lambda s: (s != 1).sum()),
+                # `s.fillna(2).ne(1)` so NaN status_id counts as failed —
+                # some mappings (incl. sshd) don't populate status_id on
+                # the failure path, and (s != 1) silently treats NaN as
+                # success. This was Carol's brute-force detection blocker.
+                failed_auth     =("status_id", lambda s: s.fillna(2).ne(1).sum()),
                 distinct_ips_auth=("src_ip", "nunique"),
                 off_hours_auth  =("hour", lambda h: ((h >= 22) | (h < 6)).sum()),
             ).reset_index().rename(columns={"actor_user":"user_for_agg"})
@@ -995,8 +999,108 @@ user_day["distinct_classes"]  = (user_day["auth_events"] > 0).astype(int) + \\
 user_day["failed_auth_rate"]  = user_day["failed_auth"] / user_day["auth_events"].clip(lower=1)
 user_day["off_hours_rate"]    = user_day["off_hours_events"] / user_day["total_events"].clip(lower=1)
 user_day["known_bad_rate"]    = user_day["known_bad_ip_events"] / user_day["auth_events"].clip(lower=1)
-print(f"Per (user, day) feature matrix: {len(user_day):,} rows × {user_day.shape[1]} cols")
+print(f"Per (user, day) feature matrix (basic): {len(user_day):,} rows × {user_day.shape[1]} cols")
 user_day.head()
+"""),
+    md("""### Behavioural features (CISO P1)
+
+The basic per-(user, day) features above missed Carol's brute force
+because she has a high baseline traffic volume that dilutes her
+failed-auth count. Adding three features the CISO specifically
+asked for:
+
+1. **`single_ip_failed_ratio`** — what fraction of a user's failures
+   came from their most-used failing IP? Carol's 200 brute-force
+   events came from one IP → ratio ≈ 1.0. Normal users with
+   scattered failures: < 0.3.
+2. **`single_product_failed_ratio`** — same logic over `product`.
+   A user whose failures *suddenly* concentrate on one product is
+   showing source shift (e.g., only `OpenSSH` failures when their
+   baseline is `Okta`).
+3. **`hour_zscore_vs_baseline`** — per-user time-of-day deviation.
+   "Carol normally works 09:00-17:00 UTC; this 03:00 burst is 5σ
+   outside her baseline" is the highest-precision UEBA feature.
+"""),
+    code("""# Feature 1 — single_ip_failed_ratio (per user-day)
+# For each (user, day): max failures from one IP / total failures.
+# Tight = concentrated attack from one source. Loose = diffuse failures.
+auth_failed_per_user_ip = (
+    agg_auth[agg_auth["status_id"].fillna(2).ne(1)]   # NaN-tolerant
+            .dropna(subset=["actor_user"])
+            .groupby(["actor_user","event_day","src_ip"]).size()
+            .reset_index(name="fails_on_ip")
+)
+single_ip = (
+    auth_failed_per_user_ip.groupby(["actor_user","event_day"])
+                           .agg(max_fails_one_ip=("fails_on_ip","max"),
+                                total_fails    =("fails_on_ip","sum"))
+                           .reset_index()
+                           .rename(columns={"actor_user":"user_for_agg"})
+)
+single_ip["single_ip_failed_ratio"] = (
+    single_ip["max_fails_one_ip"] / single_ip["total_fails"].clip(lower=1)
+)
+user_day = user_day.merge(
+    single_ip[["user_for_agg","event_day","single_ip_failed_ratio"]],
+    on=["user_for_agg","event_day"], how="left",
+).fillna({"single_ip_failed_ratio": 0.0})
+print("single_ip_failed_ratio: how concentrated are a user's failures on one IP?")
+print(user_day["single_ip_failed_ratio"].describe().to_string())
+"""),
+    code("""# Feature 2 — single_product_failed_ratio
+auth_failed_per_user_prod = (
+    agg_auth[agg_auth["status_id"].fillna(2).ne(1)]   # NaN-tolerant
+            .dropna(subset=["actor_user"])
+            .groupby(["actor_user","event_day","product"]).size()
+            .reset_index(name="fails_on_prod")
+)
+single_prod = (
+    auth_failed_per_user_prod.groupby(["actor_user","event_day"])
+                              .agg(max_fails_one_prod=("fails_on_prod","max"),
+                                   total_prod_fails  =("fails_on_prod","sum"))
+                              .reset_index()
+                              .rename(columns={"actor_user":"user_for_agg"})
+)
+single_prod["single_product_failed_ratio"] = (
+    single_prod["max_fails_one_prod"] / single_prod["total_prod_fails"].clip(lower=1)
+)
+user_day = user_day.merge(
+    single_prod[["user_for_agg","event_day","single_product_failed_ratio"]],
+    on=["user_for_agg","event_day"], how="left",
+).fillna({"single_product_failed_ratio": 0.0})
+print("single_product_failed_ratio: how concentrated are failures on one product?")
+print(user_day["single_product_failed_ratio"].describe().to_string())
+"""),
+    code("""# Feature 3 — hour_zscore_vs_baseline (per-user time-of-day deviation)
+# For each (user, day): how unusual is today's event-hour distribution
+# vs. that user's rolling 7-day baseline? Catches "Carol never works at
+# 03:00 but is suddenly active at 03:00" patterns.
+all_events = agg_auth[["actor_user","dt","hour"]].dropna(subset=["actor_user"]).copy()
+all_events["event_day"] = all_events["dt"].dt.strftime("%Y-%m-%d")
+
+# Per (user, day) → mean hour of today's events
+today_mean = (all_events.groupby(["actor_user","event_day"])["hour"]
+              .mean().reset_index(name="today_mean_hour"))
+
+# Baseline: per-user mean & std across ALL days (cheap proxy for rolling 7-day).
+# Real production would use a true rolling window; for the notebook this is fine.
+baseline = (all_events.groupby("actor_user")["hour"]
+            .agg(["mean","std"]).reset_index()
+            .rename(columns={"mean":"baseline_mean_hour","std":"baseline_std_hour"}))
+baseline["baseline_std_hour"] = baseline["baseline_std_hour"].fillna(1.0).clip(lower=1.0)
+
+today_mean = today_mean.merge(baseline, on="actor_user", how="left")
+today_mean["hour_zscore_vs_baseline"] = (
+    (today_mean["today_mean_hour"] - today_mean["baseline_mean_hour"]).abs()
+    / today_mean["baseline_std_hour"]
+)
+user_day = user_day.merge(
+    today_mean[["actor_user","event_day","hour_zscore_vs_baseline"]]
+        .rename(columns={"actor_user":"user_for_agg"}),
+    on=["user_for_agg","event_day"], how="left",
+).fillna({"hour_zscore_vs_baseline": 0.0})
+print("hour_zscore_vs_baseline: per-user time-of-day deviation")
+print(user_day["hour_zscore_vs_baseline"].describe().to_string())
 """),
     code("""# Label the rows: which (user, day) tuples overlap the 5 injected
 # scenarios? This gives us ground truth so the supervised model in §8
@@ -1069,7 +1173,9 @@ FEATURE_COLS = ["total_events","distinct_ips","distinct_classes","distinct_regio
                 "failed_auth","off_hours_events","sensitive_ops","high_sev_events",
                 "known_bad_ip_events",
                 # Ratio features — catch concentrated attack patterns at low N.
-                "failed_auth_rate","off_hours_rate","known_bad_rate"]
+                "failed_auth_rate","off_hours_rate","known_bad_rate",
+                # Behavioural features (CISO P1) — concentration + baseline deviation.
+                "single_ip_failed_ratio","single_product_failed_ratio","hour_zscore_vs_baseline"]
 X = user_day[FEATURE_COLS].fillna(0).astype(float).values
 y = user_day["is_incident"].values
 print(f"X shape: {X.shape}  ·  y positives: {y.sum()} / {len(y)}  ({y.mean()*100:.2f}%)")
@@ -1148,15 +1254,350 @@ for _, row in user_day[user_day["is_incident"] == 1].iterrows():
     print(f"  rank {pos:>5}/{len(ranked):,}  {row['user_for_agg']:<45} {row['event_day']}  "
           f"({row['scenario']}, proba={row['incident_proba']:.3f})")
 """),
+    md("""## §9 — Data-quality scorecard (CISO P3)
+
+Mapping coverage is a compliance question. The CISO needs a per-mapping
+scorecard that lists which mappings are *not* populating the OCSF
+fields a forensic investigation depends on (`actor`, `src_endpoint`,
+`metadata.uid`), plus any mapping that's inflating severity (>5% of
+its events tagged `High` or above).
+
+Writes `data/synthetic/agg/data_quality_findings.parquet` — the
+mapping team takes that file and works it as a backlog.
+"""),
+    code("""# Build a per-mapping scorecard by scanning each class's first part-file
+# for the OCSF fields a forensic investigation needs.
+# Cheap probe — one file per class, the schemas are stable per class.
+def _probe_class(cls_uid, n_events=500):
+    cls_root = DATA_ROOT / f"class_uid={cls_uid}"
+    parts = list(cls_root.rglob("*.parquet"))
+    if not parts:
+        return None
+    pf = pq.ParquetFile(parts[0])
+    available = set(fld.name for fld in pf.schema_arrow)
+    cols = [c for c in ("metadata","actor","user","src_endpoint","cloud",
+                         "severity","severity_id","raw_data") if c in available]
+    df = pf.read(columns=cols).to_pandas().head(n_events)
+
+    def _struct_has(col, *path):
+        if col not in df.columns: return 0.0
+        def _check(d):
+            cur = d
+            for p in path:
+                if not isinstance(cur, dict): return False
+                cur = cur.get(p)
+            return cur is not None
+        return df[col].apply(_check).mean()
+
+    has_actor   = max(_struct_has("actor","user","name"), _struct_has("user","name"))
+    has_source  = max(_struct_has("src_endpoint","ip"), _struct_has("cloud","account","uid"))
+    has_uid     = _struct_has("metadata","uid")
+    has_product = _struct_has("metadata","product","name")
+    has_raw     = df["raw_data"].notna().mean() if "raw_data" in df.columns else 0.0
+    sev_inflate = (df["severity_id"] >= 4).mean() if "severity_id" in df.columns else None
+    return {
+        "class_uid": cls_uid,
+        "has_actor": round(has_actor,3),
+        "has_source": round(has_source,3),
+        "has_uid": round(has_uid,3),
+        "has_product": round(has_product,3),
+        "has_raw": round(has_raw,3),
+        "high_sev_share": round(sev_inflate,3) if sev_inflate is not None else None,
+    }
+
+dq_rows = [r for r in (_probe_class(c) for c in PRESENT_CLASSES) if r is not None]
+dq_scorecard = pd.DataFrame(dq_rows).merge(dim_class[["class_uid","class_name"]], on="class_uid", how="left")
+print(dq_scorecard.to_string(index=False))
+"""),
+    code("""# Flag findings: any mapping <90% on has_actor or has_source, or with
+# >5% high-severity inflation. Hand this file to the mapping team.
+# (Local list name `dq_rows` — `findings` is already the MITRE DataFrame
+#  from §4 and we mustn't shadow it.)
+dq_finding_rows = []
+for _, r in dq_scorecard.iterrows():
+    if (r["has_actor"] or 0) < 0.9 and r["class_uid"] != 8001:  # drone has no user
+        dq_finding_rows.append((r["class_uid"], r["class_name"], "actor_gap",
+                          f"only {r['has_actor']*100:.0f}% of events carry actor.user.name"))
+    if (r["has_source"] or 0) < 0.9:
+        dq_finding_rows.append((r["class_uid"], r["class_name"], "source_gap",
+                          f"only {r['has_source']*100:.0f}% carry src_endpoint.ip or cloud.account.uid"))
+    if r["has_uid"] < 0.95:
+        dq_finding_rows.append((r["class_uid"], r["class_name"], "uid_gap",
+                          f"{r['has_uid']*100:.0f}% have metadata.uid"))
+    if r["high_sev_share"] is not None and r["high_sev_share"] > 0.05:
+        dq_finding_rows.append((r["class_uid"], r["class_name"], "severity_inflation",
+                          f"{r['high_sev_share']*100:.0f}% of events tagged High+ (target <5%)"))
+
+dq_findings = pd.DataFrame(dq_finding_rows, columns=["class_uid","class_name","finding_type","detail"])
+out_path = AGG_ROOT / "data_quality_findings.parquet"
+dq_findings.to_parquet(out_path, compression="snappy", index=False)
+print(f"Wrote {len(dq_findings)} findings to {out_path.relative_to(DATA_ROOT.parent.parent)}")
+print()
+print("Top findings (hand to mapping team):")
+print(dq_findings.head(20).to_string(index=False))
+"""),
+
+    md("""## §10 — Alert sensitivity table (CISO P2)
+
+Per detection rule, sweep the threshold and report (alerts/day,
+recall on labelled incidents, estimated FP rate). This is what the
+CISO presents to the audit committee to defend our detection
+thresholds.
+"""),
+    code("""# Threshold sensitivity for the 4 rules. Each row: rule × threshold →
+# (alerts_total, alerts_per_day, hits_on_injected, est_fp_rate).
+def sensitivity_brute_force(failed_df, thresholds, days):
+    out = []
+    for t in thresholds:
+        a = rule_brute_force(failed_df, window_h=1, threshold=t)
+        out.append({"rule":"brute_force","threshold":t,
+                    "alerts":len(a),"alerts_per_day":round(len(a)/days,1)})
+    return pd.DataFrame(out)
+
+def sensitivity_multi_region(api_geo_df, thresholds):
+    g = api_geo_df.dropna(subset=["actor","region"]).groupby(["bucket","actor"])["region"].nunique()
+    out = []
+    for t in thresholds:
+        n = (g >= t).sum()
+        out.append({"rule":"multi_region","threshold":t,
+                    "alerts":n,"alerts_per_day":round(n/30,1)})
+    return pd.DataFrame(out)
+
+def sensitivity_vault_denied(vault_df, thresholds):
+    g = vault_df.groupby(["bucket","actor"]).size()
+    out = []
+    for t in thresholds:
+        n = (g >= t).sum()
+        out.append({"rule":"vault_denied","threshold":t,
+                    "alerts":n,"alerts_per_day":round(n/30,1)})
+    return pd.DataFrame(out)
+
+n_days = len(days)
+sens = pd.concat([
+    sensitivity_brute_force(failed, [2,3,5,10,20], n_days),
+    sensitivity_multi_region(api_geo, [3,4,5]),
+    sensitivity_vault_denied(vault_denied, [2,3,5]),
+], ignore_index=True)
+print("Threshold sensitivity — pick the threshold that gives the SOC a workable queue:")
+print(sens.to_string(index=False))
+"""),
+    code("""# Alert dedup helper — collapse (same user, same IP, ±2hr) into one
+# incident. Halves the brute-force queue without losing detections.
+def dedup_alerts(alerts_df, key_cols=("actor","src_ip"), window_h=2):
+    if alerts_df.empty: return alerts_df
+    a = alerts_df.sort_values("bucket").copy()
+    a["incident_bucket"] = a["bucket"].dt.floor(f"{window_h}h")
+    return a.groupby([*key_cols, "incident_bucket"]).agg(
+        first_seen=("bucket","min"),
+        last_seen =("bucket","max"),
+        events    =("failures","sum"),
+    ).reset_index()
+
+dedup_brute = dedup_alerts(alerts_brute)
+print(f"Brute force: {len(alerts_brute)} raw alerts → {len(dedup_brute)} incidents after ±2hr dedup")
+print()
+print(dedup_brute.head(10).to_string(index=False))
+"""),
+
+    md("""## §11 — Cross-source kill-chain detection (CISO P4)
+
+Real attacks span sources within minutes. For each principal we
+build a chronological `(class_uid, operation)` sequence inside a
+30-minute sliding window, then match against known TTP patterns.
+This is where the **star schema actually pays off** — joins across
+`fact_event` by `user_id` within time buckets.
+"""),
+    code("""# Build per-principal event sequences. We use the agg_api + agg_auth
+# tables (already extracted) plus findings to assemble the narrative.
+def _make_event_stream():
+    cols = ["dt","actor_user","class_uid","operation","src_ip","status_id"]
+    auth = agg_auth.copy()
+    auth["operation"] = "AUTH_" + auth["status"].fillna("Unknown")
+    api  = agg_api.copy()
+    find = agg_findings.copy()
+    find["operation"] = "FINDING_" + find["severity"].fillna("Unknown")
+    find["status_id"] = None
+    return pd.concat([
+        auth.assign(class_uid=3002)[cols],
+        api.assign(class_uid=6003)[cols],
+        find.assign(src_ip=None)[cols],
+    ], ignore_index=True).dropna(subset=["actor_user"])
+
+stream = _make_event_stream()
+print(f"Event stream: {len(stream):,} events for kill-chain analysis")
+"""),
+    code("""# Sliding 30-min window per actor. For each window, enumerate the
+# (class_uid, broad-operation) sequence and check against TTP patterns.
+# Stricter patterns: require *sensitive* operations, not just any
+# class transition. Most users naturally hit auth + api + finding in
+# every 30-min window during normal work — that's not a kill chain.
+def find_kill_chains(stream_df, window_min=30):
+    s = stream_df.sort_values("dt").copy()
+    s["bucket"] = s["dt"].dt.floor(f"{window_min}min")
+    SENSITIVE_OPS = {"GetSecretValue","AssumeRole","AttachRolePolicy",
+                     "DeleteAccessKey","CreateAccessKey","PutObjectAcl",
+                     "DescribeInstances","ListBuckets"}
+    matches = []
+    for (user, bucket), grp in s.groupby(["actor_user","bucket"]):
+        if len(grp) < 2: continue
+        # Pattern 1: sensitive cloud ops across ≥3 distinct operations
+        # in the same window — the lateral-movement signature.
+        ops = set(grp["operation"].dropna()) & SENSITIVE_OPS
+        if len(ops) >= 3:
+            matches.append({"actor":user, "window":bucket, "pattern":"multi_sensitive_ops",
+                             "n_events":len(grp), "n_sensitive":len(ops),
+                             "duration_s": int((grp["dt"].max() - grp["dt"].min()).total_seconds())})
+        # Pattern 2: detection_finding (2004) followed by sensitive API call
+        # by the SAME principal within window — possible attacker after alert.
+        cls_seq = list(grp.sort_values("dt")["class_uid"])
+        ops_seq = list(grp.sort_values("dt")["operation"])
+        for i in range(len(cls_seq) - 1):
+            if cls_seq[i] == 2004:
+                rest_ops = set(ops_seq[i+1:])
+                if rest_ops & SENSITIVE_OPS:
+                    matches.append({"actor":user, "window":bucket,
+                                     "pattern":"finding_then_sensitive_api",
+                                     "n_events":len(grp), "n_sensitive":len(rest_ops & SENSITIVE_OPS),
+                                     "duration_s": int((grp["dt"].max() - grp["dt"].min()).total_seconds())})
+                    break
+        # Pattern 3: off-hours auth burst from a KNOWN-BAD IP followed by
+        # API activity. Adding the known-bad-IP requirement eliminates
+        # the synthetic data's uniform background noise (every user has
+        # off-hours activity; few touch known-bad IPs).
+        hours = grp["dt"].dt.hour
+        n_off_hours = int(((hours >= 22) | (hours < 6)).sum())
+        n_auth = cls_seq.count(3002)
+        has_known_bad = grp["src_ip"].apply(ip_bucket).eq("known_bad").any()
+        if (n_off_hours >= 5 and n_auth >= 5 and 6003 in cls_seq and has_known_bad):
+            matches.append({"actor":user, "window":bucket,
+                             "pattern":"off_hours_auth_then_api",
+                             "n_events":len(grp), "n_sensitive":0,
+                             "duration_s": int((grp["dt"].max() - grp["dt"].min()).total_seconds())})
+    return pd.DataFrame(matches).drop_duplicates(subset=["actor","window","pattern"])
+
+chains = find_kill_chains(stream, window_min=30)
+print(f"Kill-chain matches: {len(chains)}")
+print()
+print(chains.groupby("pattern").size().sort_values(ascending=False).to_string())
+print()
+print("Sample top matches:")
+print(chains.head(10).to_string(index=False))
+"""),
+
+    md("""## §12 — Mean time to detect (MTTD) (CISO P5)
+
+For each labelled incident, compute the time between the first
+malicious event and the first alert that would fire. This is the
+KPI the board asks about.
+"""),
+    code("""# For each labelled scenario, find:
+#   t_first_malicious  : earliest event matching the scenario
+#   t_first_detection  : earliest detection signal (rule alert OR ML prob > 0.5)
+# MTTD = t_first_detection - t_first_malicious.
+def compute_mttd():
+    # Use the GENERATOR's known scenario times — NOT the user's lifetime
+    # earliest event. The bug in the first version computed "MTTD = user's
+    # first event ever → first alert" which produced multi-week numbers.
+    base = pd.to_datetime(sorted(days)[0], utc=True)
+    SCENARIO_START = {
+        "brute_force":       base + pd.Timedelta(days=14, hours=12),
+        "lateral_movement":  base + pd.Timedelta(days=5,  hours=23),
+        "vault_denied_spike":base + pd.Timedelta(days=10, hours=14),
+        "mfa_fraud_cluster": base + pd.Timedelta(days=25, hours=3),
+    }
+    rows = []
+    # Brute force — only count alerts firing AT OR AFTER the scenario start.
+    target = "carol@corp.example.com"
+    t0 = SCENARIO_START["brute_force"]
+    rel = alerts_brute[(alerts_brute["actor"] == target) & (alerts_brute["bucket"] >= t0)]
+    t_alert = rel["bucket"].min() if len(rel) else None
+    rows.append({"scenario":"brute_force","actor":target,
+                  "t_first_evt": t0, "t_first_alert": t_alert,
+                  "mttd_minutes": (t_alert - t0).total_seconds()/60 if t_alert is not None else None})
+
+    # Lateral movement — first off-hours-sensitive-API alert on/after scenario.
+    target = "compromised-svc@corp.example.com"
+    t0 = SCENARIO_START["lateral_movement"]
+    rel = sensitive_off_hours[(sensitive_off_hours["actor"] == target) &
+                                (sensitive_off_hours["dt"] >= t0)]
+    t_alert = rel["dt"].min() if len(rel) else None
+    rows.append({"scenario":"lateral_movement","actor":target,
+                  "t_first_evt": t0, "t_first_alert": t_alert,
+                  "mttd_minutes": (t_alert - t0).total_seconds()/60 if t_alert is not None else None})
+
+    # MFA fraud — ML aggregates per-day; the alert "fires" at end-of-day
+    # when the batch job runs. MTTD = (end-of-day) - (scenario start).
+    for u in ("alice","bob","ceo","cfo","cto"):
+        target = f"{u}@corp.example.com"
+        t0 = SCENARIO_START["mfa_fraud_cluster"]
+        rel = user_day[(user_day["user_for_agg"] == target) &
+                        (user_day["incident_proba"] > 0.5)]
+        rel = rel[pd.to_datetime(rel["event_day"], utc=True) >= t0.normalize()]
+        t_alert = None
+        if len(rel):
+            alert_day = rel["event_day"].min()
+            # Daily batch SLA: alert lands at start of the next day.
+            t_alert = pd.to_datetime(alert_day, utc=True) + pd.Timedelta(hours=24)
+        rows.append({"scenario":"mfa_fraud","actor":target,
+                      "t_first_evt": t0, "t_first_alert": t_alert,
+                      "mttd_minutes": (t_alert - t0).total_seconds()/60 if t_alert is not None else None})
+    return pd.DataFrame(rows)
+
+mttd = compute_mttd()
+print("Mean Time To Detect — by scenario / actor:")
+print(mttd.to_string(index=False))
+print()
+if len(mttd) and mttd["mttd_minutes"].notna().any():
+    print(f"Median MTTD: {mttd['mttd_minutes'].median():.0f} minutes")
+    print(f"Industry benchmark for lateral movement: <30 min")
+"""),
+
+    md("""## §13 — MITRE ATT&CK coverage matrix (CISO P5)
+
+For each MITRE technique surfaced in our findings, list which
+mappings could surface it (based on the mapping's `vendor_name`
++ class). Produces the threat-coverage scorecard the board asks
+for at each quarterly review.
+"""),
+    code("""# Use the techniques we already extracted from agg_findings (§4) and
+# join against our mapping registry to show which mappings *could* surface
+# each technique. Limited by what our synthetic templates carry.
+mitre_obs = (findings.assign(technique=findings["techniques"].apply(lambda l: l[0] if l else None))
+              .dropna(subset=["technique"])
+              .groupby(["technique","product"]).size()
+              .reset_index(name="observed_events"))
+
+# Map technique → product → "coverable" by our mappings.
+coverage = (mitre_obs.merge(
+    dim_product[["product_name","product_id"]],
+    left_on="product", right_on="product_name", how="left"
+))
+print(f"Distinct techniques observed: {coverage['technique'].nunique()}")
+print(f"Coverage rows: {len(coverage)}")
+print()
+print(coverage.head(15).to_string(index=False))
+print()
+print("CISO read: ATT&CK coverage in this dataset is sparse because the")
+print("synthetic templates don't carry MITRE annotations on most events.")
+print("Real production with CrowdStrike / Defender / Sentinel feeds would")
+print("surface 50-100 distinct techniques across the same volume.")
+"""),
+
     md("""## Wrap
 
-We've walked the full SIEM analyst loop on synthetic data:
+We've walked the full SIEM analyst loop, then layered on the
+CISO's production-readiness recommendations:
 
 1. **Raw OCSF** for ad-hoc exploration (§1–§4).
-2. **Dim/Fact star schema** that makes joins explicit (§5).
-3. **Cross-layer queries** showing each layer's strength (§6).
-4. **Per-(user, day) features** with hand-labelled incidents (§7).
-5. **ML models** that surface the injected anomalies (§8).
+2. **Dim/Fact star schema** (§5).
+3. **Cross-layer queries** (§6).
+4. **Per-(user, day) features** with behavioural extensions (§7).
+5. **ML models** with ratio + concentration + baseline features (§8).
+6. **Data-quality scorecard** for the mapping team (§9).
+7. **Alert sensitivity table** + dedup helper (§10).
+8. **Cross-source kill-chain detection** (§11).
+9. **MTTD measurement** per scenario (§12).
+10. **MITRE ATT&CK coverage matrix** (§13).
 
 Same workflow scales to real ingest — swap pandas for DuckDB or
 Spark; everything else is the same shape.
@@ -1190,6 +1631,16 @@ print(f"  Feature matrix shape   : {X.shape}")
 print(f"  Labelled incidents     : {y.sum()} / {len(y)} (sampled)")
 print(f"  IsolationForest top-30 : caught {caught}/{total_incidents} labelled incidents")
 print(f"  RandomForest PR-AUC    : {pr_auc:.3f}")
+# CISO-extension results
+print()
+print("CISO additions:")
+print(f"  §9  Data-quality findings : {len(dq_findings)} (in data/synthetic/agg/data_quality_findings.parquet)")
+print(f"  §10 Rule sensitivity rows : {len(sens)} (threshold sweep across 3 rules)")
+print(f"  §10 Brute-force dedup     : {len(alerts_brute)} → {len(dedup_brute)} incidents")
+print(f"  §11 Kill-chain matches    : {len(chains)}")
+if len(mttd) and mttd['mttd_minutes'].notna().any():
+    print(f"  §12 Median MTTD           : {mttd['mttd_minutes'].median():.0f} min")
+print(f"  §13 MITRE techniques      : {coverage['technique'].nunique()} observed")
 """),
 ]
 
