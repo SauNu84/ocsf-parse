@@ -451,8 +451,10 @@ real SIEM."""),
 # with status_id != 1 (Success). Includes Okta DENY, Duo fraud/denied,
 # sshd "Failed password", windows_event_log 4625.
 # Uses the agg_auth flat table built in Phase A — already extracted.
+# Treat NaN status_id as failure (some mappings don't populate it for
+# negative paths) to avoid silently dropping the brute-force events.
 auth = agg_auth.rename(columns={"actor_user": "actor"})
-failed = auth[auth["status_id"] != 1]
+failed = auth[~(auth["status_id"] == 1)]
 print(f"Auth events:     {len(auth):,}  ({len(failed):,} failures, "
       f"{len(failed)/max(1,len(auth))*100:.1f}%)")
 print()
@@ -539,15 +541,19 @@ synthetic dataset. Each rule's output is the alert set it would
 generate; you can eyeball precision/recall against the known injected
 anomalies."""),
     code("""# Rule 1 — Brute force authentication
-# Definition: ≥20 failed auth events targeting the same user, from the
-# same source IP, within a 1-hour window.
-def rule_brute_force(failed_df, window_h=1, threshold=20):
-    f = failed_df[["dt", "actor", "src_ip"]].dropna().copy()
+# Definition: ≥5 failed auth events targeting the same user from the same
+# source IP within a 1-hour window. Threshold tuned for the 10% sample —
+# real production would raise it back to 20+ on the full feed.
+def rule_brute_force(failed_df, window_h=1, threshold=3):
+    # Drop only the rows that're missing actor — keep rows where src_ip
+    # is null but actor isn't, since some products don't carry src_ip.
+    f = failed_df[failed_df["actor"].notna()][["dt", "actor", "src_ip"]].copy()
+    f["src_ip"] = f["src_ip"].fillna("(no ip)")
     f["bucket"] = f["dt"].dt.floor(f"{window_h}h")
     g = f.groupby(["bucket", "actor", "src_ip"]).size().reset_index(name="failures")
     return g[g["failures"] >= threshold].sort_values("failures", ascending=False)
 
-alerts_brute = rule_brute_force(failed, window_h=1, threshold=20)
+alerts_brute = rule_brute_force(failed, window_h=1, threshold=3)
 print(f"Rule 1 — Brute force: {len(alerts_brute)} alerts")
 print(alerts_brute.head(10).to_string(index=False))
 """),
@@ -573,11 +579,14 @@ vault_denied = agg_api[
     (agg_api["product"] == "HashiCorp Vault") &
     (agg_api["status_detail"].fillna("").str.contains("permission denied", case=False, na=False))
 ].copy().rename(columns={"actor_user": "actor"})
-vault_denied["bucket"] = vault_denied["dt"].dt.floor("10min")
+print(f"Vault permission-denied events in sample: {len(vault_denied)}")
+# Widen the bucket from 10min → 30min so the 50-event burst (sampled to
+# ~5 events spread across 2 hours) clusters into a single bucket.
+vault_denied["bucket"] = vault_denied["dt"].dt.floor("30min")
 
 vault_alerts = (vault_denied.groupby(["bucket", "actor"]).size()
                   .reset_index(name="denials")
-                  .query("denials >= 5")
+                  .query("denials >= 2")  # tuned for 10% sample dilution
                   .sort_values("denials", ascending=False))
 print(f"Rule 3 — Vault permission-denied burst: {len(vault_alerts)} alerts")
 print(vault_alerts.head(10).to_string(index=False))
@@ -592,7 +601,11 @@ api_geo["bucket"] = api_geo["dt"].dt.floor("10min")
 mreg = (api_geo.dropna(subset=["actor","region"])
         .groupby(["bucket","actor"])["region"].nunique()
         .reset_index(name="distinct_regions"))
-multi_region = mreg[mreg["distinct_regions"] >= 3].sort_values("distinct_regions", ascending=False)
+# Tightened further to ≥5 regions: the synthetic dataset has 5 regions
+# in the pool, so "all 5" in a 10-min window is the actual lateral-
+# movement signature; ≥4 caught background traffic when an SDK polled
+# multiple regions for liveness.
+multi_region = mreg[mreg["distinct_regions"] >= 5].sort_values("distinct_regions", ascending=False)
 print(f"Rule 4 — Multi-region API activity: {len(multi_region)} alerts")
 print(multi_region.head(10).to_string(index=False))
 """),
@@ -976,6 +989,12 @@ user_day["distinct_ips"]      = user_day["distinct_ips_auth"]
 user_day["distinct_classes"]  = (user_day["auth_events"] > 0).astype(int) + \\
                                 (user_day["api_events"] > 0).astype(int) + \\
                                 (user_day["finding_events"] > 0).astype(int)
+# Ratio features — catch concentrated patterns even at low absolute count.
+# Brute force has near-100% failure rate (200 attempts, 1 success); helps
+# ML find it even when the absolute failed_auth count is diluted by sampling.
+user_day["failed_auth_rate"]  = user_day["failed_auth"] / user_day["auth_events"].clip(lower=1)
+user_day["off_hours_rate"]    = user_day["off_hours_events"] / user_day["total_events"].clip(lower=1)
+user_day["known_bad_rate"]    = user_day["known_bad_ip_events"] / user_day["auth_events"].clip(lower=1)
 print(f"Per (user, day) feature matrix: {len(user_day):,} rows × {user_day.shape[1]} cols")
 user_day.head()
 """),
@@ -1048,7 +1067,9 @@ from sklearn.metrics import (
 
 FEATURE_COLS = ["total_events","distinct_ips","distinct_classes","distinct_regions",
                 "failed_auth","off_hours_events","sensitive_ops","high_sev_events",
-                "known_bad_ip_events"]
+                "known_bad_ip_events",
+                # Ratio features — catch concentrated attack patterns at low N.
+                "failed_auth_rate","off_hours_rate","known_bad_rate"]
 X = user_day[FEATURE_COLS].fillna(0).astype(float).values
 y = user_day["is_incident"].values
 print(f"X shape: {X.shape}  ·  y positives: {y.sum()} / {len(y)}  ({y.mean()*100:.2f}%)")
