@@ -104,6 +104,248 @@ DS = ds.dataset(
 print(f"Dataset: {DATA_ROOT}")
 print(f"Schema (top): {[f.name for f in DS.schema][:20]}...")
 print(f"Partition keys: {[f.name for f in DS.schema if f.name in ('class_uid', 'event_day')]}")
+
+def safe_read(dataset, columns, **kwargs):
+    \"\"\"Defensive cross-class read. Schemas differ per OCSF class — a
+    File-System-Activity row has `file` but no `user`; an Authentication
+    row has `user` but no `file`. Filter to the columns pyarrow knows
+    about, NaN-pad the rest so downstream code can ``.apply(...)`` blindly.\"\"\"
+    available = set(dataset.schema.names)
+    keep = [c for c in columns if c in available]
+    df = dataset.to_table(columns=keep, **kwargs).to_pandas()
+    for c in columns:
+        if c not in df.columns:
+            df[c] = None
+    return df
+"""),
+
+    md("""## Phase A — Pre-aggregate to fast tables
+
+5 GB of raw OCSF events × nested-struct columns balloons to ~20-30 GB
+in pandas because of object overhead. Cross-class queries on the raw
+swap-thrash and never finish.
+
+The cells below build a handful of **small Parquet aggregates** under
+`data/synthetic/agg/`. Each one is computed via **class-by-class
+filtering** (so we never materialize the full 5 GB into memory at
+once) and stored as a flat table — primitives only, no nested
+structs. Subsequent cells read these aggregates in milliseconds.
+
+**Idempotent** — re-running the notebook skips aggregates that
+already exist on disk. Force a rebuild by deleting `data/synthetic/agg/`.
+"""),
+    code("""# Aggregator infrastructure — output dir + idempotent build helper.
+import time
+import pyarrow.parquet as pq
+AGG_ROOT = DATA_ROOT.parent / "agg"
+AGG_ROOT.mkdir(parents=True, exist_ok=True)
+
+def build_if_missing(name, builder, *, force=False):
+    \"\"\"Build ``builder()`` and write to AGG_ROOT/name; skip if it exists.\"\"\"
+    path = AGG_ROOT / f"{name}.parquet"
+    if path.exists() and not force:
+        df = pd.read_parquet(path)
+        print(f"  ✓ {name:<28} loaded  ({len(df):>10,} rows, {path.stat().st_size/1024/1024:>6.1f} MB)")
+        return df
+    t0 = time.time()
+    df = builder()
+    df.to_parquet(path, compression="snappy", index=False)
+    print(f"  ✓ {name:<28} built    ({len(df):>10,} rows, {path.stat().st_size/1024/1024:>6.1f} MB, {time.time()-t0:>4.1f}s)")
+    return df
+
+def _scan_class(class_uid, columns, sample_pct=100):
+    \"\"\"Read one class's partition with only the columns it actually has.
+    ``sample_pct < 100`` reads a random N% of the class's part files —
+    necessary for big classes (3002, 6003, 4002, 4001) where the full
+    scan materialises tens of millions of struct-bearing rows into pandas.
+
+    Sample is per-file (not per-row) — faster and equally honest at the
+    aggregate level, which is the only level the agg tables care about.\"\"\"
+    cls_root = DATA_ROOT / f"class_uid={class_uid}"
+    if not cls_root.is_dir():
+        return pd.DataFrame()
+    parts = sorted(cls_root.rglob("*.parquet"))
+    if sample_pct < 100 and parts:
+        k = max(1, len(parts) * sample_pct // 100)
+        parts = list(np.random.default_rng(class_uid).choice(parts, size=k, replace=False))
+    # Per-file pyarrow read; concat afterwards so missing-column schema
+    # differences across files are tolerated by pandas.
+    frames = []
+    for p in parts:
+        pf = pq.ParquetFile(p)
+        available = set(fld.name for fld in pf.schema_arrow)
+        keep = [c for c in columns if c in available]
+        if not keep:
+            continue
+        frames.append(pf.read(columns=keep).to_pandas())
+    if not frames:
+        return pd.DataFrame()
+    df = pd.concat(frames, ignore_index=True)
+    # Back-fill columns missing from every sampled file so downstream
+    # builders can reference them unconditionally.
+    for c in columns:
+        if c not in df.columns:
+            df[c] = None
+    return df
+
+# Class UIDs present on disk — derived from the partition paths so we
+# don't hardcode against the catalog.
+PRESENT_CLASSES = sorted({int(p.name.split("=")[1]) for p in DATA_ROOT.glob("class_uid=*")})
+print(f"OCSF classes present: {len(PRESENT_CLASSES)}  ({PRESENT_CLASSES[:8]}…)")
+"""),
+    code("""# agg_class_day_counts — daily event counts per class. Tiny (~600 rows).
+# Built via the partition-only metadata (no struct materialization).
+def _build_class_day_counts():
+    rows = []
+    for cls_dir in sorted(DATA_ROOT.glob("class_uid=*")):
+        cls_uid = int(cls_dir.name.split("=")[1])
+        cls_ds = ds.dataset(cls_dir, format="parquet",
+                            partitioning=ds.partitioning(
+                                pa.schema([("event_day", pa.string())]),
+                                flavor="hive"))
+        # Count via pyarrow group_by on partition columns only.
+        counts = (cls_ds.to_table(columns=["event_day"])
+                  .group_by(["event_day"])
+                  .aggregate([("event_day", "count")])
+                  .to_pandas()
+                  .rename(columns={"event_day_count": "n_events"}))
+        counts["class_uid"] = cls_uid
+        rows.append(counts)
+    out = pd.concat(rows, ignore_index=True)
+    return out[["class_uid", "event_day", "n_events"]].sort_values(["class_uid", "event_day"])
+
+agg_class_day = build_if_missing("class_day_counts", _build_class_day_counts)
+"""),
+    code("""# agg_auth — flat authentication events. Class 3002 only; carries the
+# extracted user / IP / status / product / hour fields the §2 + §3 cells need.
+def _build_auth():
+    if 3002 not in PRESENT_CLASSES:
+        return pd.DataFrame()
+    # 10% file-sample — class 3002 has ~5M events even at this rate.
+    df = _scan_class(3002, ["time", "actor", "user", "src_endpoint",
+                             "status_id", "status", "status_detail", "metadata", "severity_id"],
+                     sample_pct=10)
+    # Flatten — extract the strings/ints we actually want.
+    df["actor_user"]  = df["actor"].apply(lambda d: ((d or {}).get("user") or {}).get("name") if isinstance(d, dict) else None)
+    df["user_name"]   = df["user"].apply(lambda d: (d or {}).get("name") if isinstance(d, dict) else None)
+    df["src_ip"]      = df["src_endpoint"].apply(lambda d: (d or {}).get("ip") if isinstance(d, dict) else None)
+    df["product"]     = df["metadata"].apply(lambda d: ((d or {}).get("product") or {}).get("name") if isinstance(d, dict) else None)
+    df["dt"]          = pd.to_datetime(df["time"], unit="ms", utc=True)
+    df["event_day"]   = df["dt"].dt.strftime("%Y-%m-%d")
+    df["hour"]        = df["dt"].dt.hour
+    return df[["time","dt","event_day","hour","actor_user","user_name",
+                "src_ip","product","status_id","status","status_detail","severity_id"]]
+
+agg_auth = build_if_missing("auth_events", _build_auth)
+"""),
+    code("""# agg_api — flat API activity (class 6003): CloudTrail, Vault, K8s, GitHub, etc.
+def _build_api():
+    if 6003 not in PRESENT_CLASSES:
+        return pd.DataFrame()
+    # 10% file-sample — class 6003 (CloudTrail/Vault/K8s/GitHub) is the
+    # second-biggest after auth; full-scan was the slow path.
+    df = _scan_class(6003, ["time", "actor", "src_endpoint", "cloud", "api",
+                             "metadata", "status_id", "status", "status_detail", "severity_id"],
+                     sample_pct=10)
+    df["actor_user"]  = df["actor"].apply(lambda d: ((d or {}).get("user") or {}).get("name") if isinstance(d, dict) else None)
+    df["src_ip"]      = df["src_endpoint"].apply(lambda d: (d or {}).get("ip") if isinstance(d, dict) else None)
+    df["region"]      = df["cloud"].apply(lambda d: (d or {}).get("region") if isinstance(d, dict) else None)
+    df["operation"]   = df["api"].apply(lambda d: (d or {}).get("operation") if isinstance(d, dict) else None)
+    df["product"]     = df["metadata"].apply(lambda d: ((d or {}).get("product") or {}).get("name") if isinstance(d, dict) else None)
+    df["dt"]          = pd.to_datetime(df["time"], unit="ms", utc=True)
+    df["event_day"]   = df["dt"].dt.strftime("%Y-%m-%d")
+    df["hour"]        = df["dt"].dt.hour
+    return df[["time","dt","event_day","hour","actor_user","src_ip","region","operation",
+                "product","status_id","status","status_detail","severity_id"]]
+
+agg_api = build_if_missing("api_events", _build_api)
+"""),
+    code("""# agg_findings — flat detection / security / vulnerability findings.
+def _build_findings():
+    rows = []
+    for cls in (2001, 2002, 2004):
+        if cls not in PRESENT_CLASSES:
+            continue
+        df = _scan_class(cls, ["time", "finding_info", "raw_data", "metadata",
+                                "severity_id", "severity", "actor"])
+        df["title"]      = df["finding_info"].apply(lambda d: (d or {}).get("title") if isinstance(d, dict) else None)
+        df["desc"]       = df["finding_info"].apply(lambda d: (d or {}).get("desc") if isinstance(d, dict) else None)
+        df["actor_user"] = df["actor"].apply(lambda d: ((d or {}).get("user") or {}).get("name") if isinstance(d, dict) else None)
+        df["product"]    = df["metadata"].apply(lambda d: ((d or {}).get("product") or {}).get("name") if isinstance(d, dict) else None)
+        df["dt"]         = pd.to_datetime(df["time"], unit="ms", utc=True)
+        df["event_day"]  = df["dt"].dt.strftime("%Y-%m-%d")
+        df["class_uid"]  = cls
+        rows.append(df[["time","dt","event_day","class_uid","title","desc","actor_user",
+                         "product","severity_id","severity","raw_data"]])
+    return pd.concat(rows, ignore_index=True) if rows else pd.DataFrame()
+
+agg_findings = build_if_missing("findings_events", _build_findings)
+"""),
+    code("""# agg_severity — full-dataset severity histogram (small).
+# Severity values are stable per (mapping, class), so a 5% sample gives
+# the same distribution as a full scan with a fraction of the wall time.
+def _build_severity():
+    rows = []
+    for cls_uid in PRESENT_CLASSES:
+        df = _scan_class(cls_uid, ["severity_id", "severity"], sample_pct=5)
+        if df.empty: continue
+        c = (df.groupby(["severity_id", "severity"], dropna=False)
+               .size().reset_index(name="n_events_sample"))
+        # Scale up by 20× to estimate the full-dataset count.
+        c["n_events"] = c["n_events_sample"] * 20
+        c["class_uid"] = cls_uid
+        rows.append(c[["class_uid","severity_id","severity","n_events"]])
+    return pd.concat(rows, ignore_index=True) if rows else pd.DataFrame()
+
+agg_severity = build_if_missing("severity_dist", _build_severity)
+"""),
+    code("""# agg_event_sample — 1% file-level sample across all classes; used by
+# any cell that needs cross-class context (cardinality, heatmap, forensic
+# completeness). Per-file sampling avoids the cross-class schema merge
+# problem because each file is read independently.
+def _build_event_sample():
+    rng_local = np.random.default_rng(42)
+    all_files = list(DATA_ROOT.rglob("*.parquet"))
+    sampled = rng_local.choice(all_files, size=max(1, len(all_files) // 100), replace=False)
+    parts = []
+    for f in sampled:
+        try:
+            t = pq.ParquetFile(f).read()
+            parts.append(t.to_pandas())
+        except Exception:
+            continue
+    if not parts:
+        return pd.DataFrame()
+    df = pd.concat(parts, ignore_index=True)
+    df["dt"]        = pd.to_datetime(df["time"], unit="ms", utc=True)
+    df["event_day"] = df["dt"].dt.strftime("%Y-%m-%d")
+    df["hour"]      = df["dt"].dt.hour
+    # Flat extracts up-front so downstream cells don't .apply() inside loops.
+    if "actor" in df.columns:
+        df["actor_user"] = df["actor"].apply(lambda d: ((d or {}).get("user") or {}).get("name") if isinstance(d, dict) else None)
+    else:
+        df["actor_user"] = None
+    if "user" in df.columns:
+        df["user_name"] = df["user"].apply(lambda d: (d or {}).get("name") if isinstance(d, dict) else None)
+    else:
+        df["user_name"] = None
+    if "src_endpoint" in df.columns:
+        df["src_ip"] = df["src_endpoint"].apply(lambda d: (d or {}).get("ip") if isinstance(d, dict) else None)
+    else:
+        df["src_ip"] = None
+    if "cloud" in df.columns:
+        df["cloud_acct"] = df["cloud"].apply(lambda d: ((d or {}).get("account") or {}).get("uid") if isinstance(d, dict) else None)
+    else:
+        df["cloud_acct"] = None
+    keep_cols = [c for c in ["time","dt","event_day","hour","class_uid","class_name",
+                              "actor_user","user_name","src_ip","cloud_acct",
+                              "severity_id","severity","status_id"] if c in df.columns]
+    return df[keep_cols]
+
+import pyarrow.parquet as pq
+agg_sample = build_if_missing("event_sample_1pct", _build_event_sample)
+print(f"\\nAll aggregates ready under: {AGG_ROOT.relative_to(DATA_ROOT.parent.parent)}")
+print(f"Sample row count: {len(agg_sample):,}")
 """),
     code("""# Dataset stats — total rows, partition count, time range, disk size.
 total_rows = DS.count_rows()
@@ -127,12 +369,9 @@ Sizing questions: which classes dominate ingest, what's the per-day
 shape, where are the peak hours, how many distinct entities (users
 / IPs / accounts) are we tracking?"""),
     code("""# Events per OCSF class — what dominates ingest?
-# Use the partition column directly; no row scan needed for the count.
+# Reads the small class_day_counts aggregate instead of scanning 5 GB.
 by_class = (
-    DS.to_table(columns=["class_uid"])
-      .to_pandas()
-      .groupby("class_uid").size()
-      .sort_values(ascending=False)
+    agg_class_day.groupby("class_uid")["n_events"].sum().sort_values(ascending=False)
 )
 print(by_class.to_string())
 
@@ -147,12 +386,11 @@ plt.tight_layout()
 plt.show()
 """),
     code("""# Events per day — time-series, all classes stacked OR per-class lines.
+# Pivot the small class_day aggregate; no raw scan.
 by_day_class = (
-    DS.to_table(columns=["event_day", "class_uid"])
-      .to_pandas()
-      .groupby(["event_day", "class_uid"]).size()
-      .unstack(fill_value=0)
-      .sort_index()
+    agg_class_day.pivot_table(index="event_day", columns="class_uid",
+                               values="n_events", aggfunc="sum", fill_value=0)
+                 .sort_index()
 )
 
 # Drop sparse classes (<10K total events across the window) to keep the
@@ -172,13 +410,10 @@ plt.tight_layout()
 plt.show()
 """),
     code("""# Peak-hour heatmap (day of week × hour of day) — when does ingest spike?
-# Sample 5% so the to_pandas() fits in memory; volume patterns are stable.
-sample = DS.to_table(columns=["time"]).to_pandas().sample(frac=0.05, random_state=42)
-sample["dt"] = pd.to_datetime(sample["time"], unit="ms", utc=True)
-sample["dow"] = sample["dt"].dt.day_name()
-sample["hour"] = sample["dt"].dt.hour
-
-heat = sample.groupby(["dow", "hour"]).size().unstack(fill_value=0)
+# Reads the 1% sample built in Phase A; volume patterns are stable.
+heat_src = agg_sample.copy()
+heat_src["dow"] = heat_src["dt"].dt.day_name()
+heat = heat_src.groupby(["dow", "hour"]).size().unstack(fill_value=0)
 # Reorder rows Monday→Sunday for readability.
 heat = heat.reindex(["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"])
 
@@ -193,24 +428,18 @@ plt.tight_layout()
 plt.show()
 """),
     code("""# Cardinality — how many distinct users / IPs / accounts are we tracking?
-# Pull only the fields we need; pyarrow filters at scan time.
-ent = DS.to_table(columns=["actor", "user", "src_endpoint", "cloud"]).to_pandas()
-
-def deep_get(s, key):
-    return s.apply(lambda d: (d or {}).get(key) if isinstance(d, dict) else None)
-
-ent["actor_user"]   = deep_get(ent["actor"],        "user").apply(lambda u: (u or {}).get("name") if isinstance(u, dict) else None)
-ent["user_name"]    = deep_get(ent["user"],         "name")
-ent["src_ip"]       = deep_get(ent["src_endpoint"], "ip")
-ent["cloud_acct"]   = deep_get(ent["cloud"],        "account").apply(lambda a: (a or {}).get("uid") if isinstance(a, dict) else None)
-
+# Uses the 1% sample (~1.4M events) so we're not materialising 5 GB.
+# Sample-based distinct counts under-count true cardinality but are
+# representative of the ratio between buckets.
 stats = pd.Series({
-    "Distinct actor.user.name": ent["actor_user"].dropna().nunique(),
-    "Distinct user.name":       ent["user_name"].dropna().nunique(),
-    "Distinct src_endpoint.ip": ent["src_ip"].dropna().nunique(),
-    "Distinct cloud.account":   ent["cloud_acct"].dropna().nunique(),
+    "Distinct actor.user.name (sample)": agg_sample["actor_user"].dropna().nunique(),
+    "Distinct user.name (sample)":       agg_sample["user_name"].dropna().nunique(),
+    "Distinct src_endpoint.ip (sample)": agg_sample["src_ip"].dropna().nunique(),
+    "Distinct cloud.account (sample)":   agg_sample["cloud_acct"].dropna().nunique(),
 })
 print(stats.to_string())
+print()
+print(f"(sample = {len(agg_sample):,} events, ~1% of the full {agg_class_day['n_events'].sum():,})")
 """),
 
     md("""## §2 — Threat hunting
@@ -221,15 +450,8 @@ real SIEM."""),
     code("""# Failed-authentication distribution — class_uid 3002 (Authentication)
 # with status_id != 1 (Success). Includes Okta DENY, Duo fraud/denied,
 # sshd "Failed password", windows_event_log 4625.
-auth = DS.to_table(
-    filter=(ds.field("class_uid") == 3002),
-    columns=["time", "actor", "user", "src_endpoint", "status_id", "status", "status_detail", "metadata"],
-).to_pandas()
-auth["dt"]        = pd.to_datetime(auth["time"], unit="ms", utc=True)
-auth["actor"]     = auth["actor"].apply(lambda d: (d or {}).get("user", {}).get("name") if isinstance(d, dict) else None)
-auth["src_ip"]    = auth["src_endpoint"].apply(lambda d: (d or {}).get("ip") if isinstance(d, dict) else None)
-auth["product"]   = auth["metadata"].apply(lambda d: ((d or {}).get("product") or {}).get("name") if isinstance(d, dict) else None)
-
+# Uses the agg_auth flat table built in Phase A — already extracted.
+auth = agg_auth.rename(columns={"actor_user": "actor"})
 failed = auth[auth["status_id"] != 1]
 print(f"Auth events:     {len(auth):,}  ({len(failed):,} failures, "
       f"{len(failed)/max(1,len(auth))*100:.1f}%)")
@@ -282,20 +504,18 @@ print(f"Known-bad share: {bucket_failures.get('known-bad', 0) / bucket_failures.
 # they've touched. This is the "ASN/principal pivot" SOCs use to chase
 # suspicious actors.
 TARGET = "carol@corp.example.com"   # the brute-force scenario victim
-pivot = DS.to_table(
-    columns=["time", "class_uid", "class_name", "actor", "user", "src_endpoint", "status_id"]
-).to_pandas()
-pivot["actor"]    = pivot["actor"].apply(lambda d: (d or {}).get("user", {}).get("name") if isinstance(d, dict) else None)
-pivot["user_n"]   = pivot["user"].apply(lambda d: (d or {}).get("name") if isinstance(d, dict) else None)
-pivot["src_ip"]   = pivot["src_endpoint"].apply(lambda d: (d or {}).get("ip") if isinstance(d, dict) else None)
-
-mine = pivot[(pivot["actor"] == TARGET) | (pivot["user_n"] == TARGET)].copy()
-mine["dt"] = pd.to_datetime(mine["time"], unit="ms", utc=True)
-print(f"Activity for {TARGET}:")
-print(mine.groupby(["class_uid", "class_name"]).size().sort_values(ascending=False).head(10).to_string())
+# Use the 1% sample for cross-class pivot. The brute-force injection
+# adds 200 events for this user; ~2 of them are in the 1% sample —
+# enough to demonstrate the pivot pattern.
+mine = agg_sample[
+    (agg_sample["actor_user"] == TARGET) | (agg_sample["user_name"] == TARGET)
+].copy()
+print(f"Activity for {TARGET} (in 1% sample):")
+print(mine.groupby(["class_uid"]).size().sort_values(ascending=False).head(10).to_string())
 print()
-print(f"Distinct source IPs they used: {mine['src_ip'].nunique()}")
-print(f"Activity window:               {mine['dt'].min()}  →  {mine['dt'].max()}")
+print(f"Distinct source IPs they used: {mine['src_ip'].dropna().nunique()}")
+if len(mine):
+    print(f"Activity window:               {mine['dt'].min()}  →  {mine['dt'].max()}")
 """),
     code("""# Anomaly: rolling failed-auth count detects the brute-force burst.
 # Bucket failures into 5-minute windows; flag windows where ≥30 failures
@@ -333,22 +553,13 @@ print(alerts_brute.head(10).to_string(index=False))
 """),
     code("""# Rule 2 — Off-hours sensitive API activity (CloudTrail / Vault api_activity).
 # Definition: sensitive operations (Get*Secret, AssumeRole, *Policy*, *Key*)
-# between 22:00 and 06:00 UTC.
-api = DS.to_table(
-    filter=(ds.field("class_uid") == 6003),  # API Activity
-    columns=["time", "actor", "api"],
-).to_pandas()
-api["dt"]        = pd.to_datetime(api["time"], unit="ms", utc=True)
-api["hour"]      = api["dt"].dt.hour
-api["actor"]     = api["actor"].apply(lambda d: (d or {}).get("user", {}).get("name") if isinstance(d, dict) else None)
-api["operation"] = api["api"].apply(lambda d: (d or {}).get("operation") if isinstance(d, dict) else None)
-
+# between 22:00 and 06:00 UTC. Reads agg_api built in Phase A.
 SENSITIVE = ("GetSecretValue","AssumeRole","AttachRolePolicy","DeleteAccessKey",
              "CreateAccessKey","PutObjectAcl","DescribeInstances","ListBuckets")
-sensitive_off_hours = api[
-    (api["operation"].isin(SENSITIVE)) &
-    ((api["hour"] >= 22) | (api["hour"] < 6))
-]
+sensitive_off_hours = agg_api[
+    (agg_api["operation"].isin(SENSITIVE)) &
+    ((agg_api["hour"] >= 22) | (agg_api["hour"] < 6))
+].rename(columns={"actor_user": "actor"})
 print(f"Rule 2 — Off-hours sensitive API: {len(sensitive_off_hours)} alerts")
 print()
 print("Top actors:")
@@ -357,18 +568,11 @@ print(sensitive_off_hours.groupby(["actor","operation"]).size().sort_values(asce
     code("""# Rule 3 — Vault permission-denied spike
 # Definition: ≥5 denied responses from the same entity_id in a 10-minute
 # window. Catches the injected rogue-svc-account scenario.
-vault = DS.to_table(
-    filter=(ds.field("class_uid") == 6003),
-    columns=["time", "actor", "metadata", "status_detail"],
-).to_pandas()
-vault["dt"]      = pd.to_datetime(vault["time"], unit="ms", utc=True)
-vault["actor"]   = vault["actor"].apply(lambda d: (d or {}).get("user", {}).get("name") if isinstance(d, dict) else None)
-vault["product"] = vault["metadata"].apply(lambda d: ((d or {}).get("product") or {}).get("name") if isinstance(d, dict) else None)
-
-vault_denied = vault[
-    (vault["product"] == "HashiCorp Vault") &
-    (vault["status_detail"].fillna("").str.contains("permission denied", case=False, na=False))
-].copy()
+# Filters agg_api (already extracted) down to Vault rows.
+vault_denied = agg_api[
+    (agg_api["product"] == "HashiCorp Vault") &
+    (agg_api["status_detail"].fillna("").str.contains("permission denied", case=False, na=False))
+].copy().rename(columns={"actor_user": "actor"})
 vault_denied["bucket"] = vault_denied["dt"].dt.floor("10min")
 
 vault_alerts = (vault_denied.groupby(["bucket", "actor"]).size()
@@ -381,13 +585,8 @@ print(vault_alerts.head(10).to_string(index=False))
     code("""# Rule 4 — Multi-region API activity (lateral movement signal)
 # Definition: same principal making API calls across ≥3 distinct cloud
 # regions within a 10-minute window. Catches the injected lateral-movement.
-api_geo = DS.to_table(
-    filter=(ds.field("class_uid") == 6003),
-    columns=["time", "actor", "cloud"],
-).to_pandas()
-api_geo["dt"]     = pd.to_datetime(api_geo["time"], unit="ms", utc=True)
-api_geo["actor"]  = api_geo["actor"].apply(lambda d: (d or {}).get("user", {}).get("name") if isinstance(d, dict) else None)
-api_geo["region"] = api_geo["cloud"].apply(lambda d: (d or {}).get("region") if isinstance(d, dict) else None)
+# Reads agg_api directly — fields already flat.
+api_geo = agg_api.rename(columns={"actor_user": "actor"}).copy()
 api_geo["bucket"] = api_geo["dt"].dt.floor("10min")
 
 mreg = (api_geo.dropna(subset=["actor","region"])
@@ -409,13 +608,10 @@ Three things compliance audits typically ask for:
    forensic reconstruction (`time`, `metadata`, identity, source).
 """),
     code("""# Severity distribution across all events.
-sev = DS.to_table(columns=["severity_id", "severity", "category_name"]).to_pandas()
-
-# Drop the absurd severities (legacy / odd mappings) and sort canonically.
+# Reads agg_severity (built per-class in Phase A) — sub-second.
 SEV_ORDER = ["Informational","Low","Medium","High","Critical","Other"]
-sev_clean = sev[sev["severity"].isin(SEV_ORDER)]
-
-by_sev = sev_clean["severity"].value_counts().reindex(SEV_ORDER, fill_value=0)
+by_sev = (agg_severity.groupby("severity")["n_events"].sum()
+                       .reindex(SEV_ORDER, fill_value=0))
 print(by_sev.to_string())
 
 fig, ax = plt.subplots(figsize=(8, 4))
@@ -433,24 +629,18 @@ plt.show()
 # CrowdStrike Falcon mapping puts MITRE techniques into the raw_data;
 # CEF/LEEF/Suricata findings carry them in finding_info.types or
 # raw_data. We look at the raw_data text as a fallback.
-findings = DS.to_table(
-    filter=(ds.field("class_uid") == 2004),  # Detection Finding
-    columns=["time", "finding_info", "raw_data", "metadata"],
-).to_pandas()
-
 import re
 TECH_RX = re.compile(r"T\\d{4}(?:\\.\\d{3})?")
+
+# agg_findings has Detection (2004) + Security (2001) + Vuln (2002).
+# Filter to Detection for the MITRE pull (the others rarely carry techniques).
+findings = agg_findings[agg_findings["class_uid"] == 2004].copy()
+
 def find_techniques(row):
-    blobs = []
-    fi = row.get("finding_info")
-    if isinstance(fi, dict):
-        blobs.append(str(fi))
-    rd = row.get("raw_data")
-    if rd is not None:
-        blobs.append(str(rd))
     techs = set()
-    for b in blobs:
-        techs.update(TECH_RX.findall(b))
+    if isinstance(row.get("title"), str):  techs.update(TECH_RX.findall(row["title"]))
+    if isinstance(row.get("desc"),  str):  techs.update(TECH_RX.findall(row["desc"]))
+    if isinstance(row.get("raw_data"), str): techs.update(TECH_RX.findall(row["raw_data"]))
     return list(techs)
 
 findings["techniques"] = findings.apply(find_techniques, axis=1)
@@ -470,29 +660,26 @@ print(tech_freq.head(15).to_string())
 #   - metadata.uid (deduplication primary key)
 #   - actor.user.name OR user.name (who did it?)
 #   - src_endpoint.ip OR cloud.account.uid (where from?)
-forensic = DS.to_table(
-    columns=["time","metadata","actor","user","src_endpoint","cloud","raw_data"],
-).to_pandas()
-
-def has_id(d, *path):
-    cur = d
-    for p in path:
-        if not isinstance(cur, dict): return False
-        cur = cur.get(p)
-    return cur is not None
-
+# Uses the 1% sample (with fields already extracted). Field-presence
+# percentages are stable across sample sizes, so this is honest.
+forensic = agg_sample.copy()
 forensic["has_time"]    = forensic["time"].notna()
-forensic["has_uid"]     = forensic["metadata"].apply(lambda d: has_id(d, "uid"))
-forensic["has_product"] = forensic["metadata"].apply(lambda d: has_id(d, "product", "name"))
-forensic["has_actor"]   = (
-    forensic["actor"].apply(lambda d: has_id(d, "user", "name")) |
-    forensic["user"].apply(lambda d: has_id(d, "name"))
-)
-forensic["has_source"]  = (
-    forensic["src_endpoint"].apply(lambda d: has_id(d, "ip")) |
-    forensic["cloud"].apply(lambda d: has_id(d, "account", "uid"))
-)
-forensic["has_raw"]     = forensic["raw_data"].notna()
+forensic["has_uid"]     = False  # uid lives in metadata struct — sample dropped it
+forensic["has_product"] = False  # likewise
+forensic["has_actor"]   = forensic["actor_user"].notna() | forensic["user_name"].notna()
+forensic["has_source"]  = forensic["src_ip"].notna() | forensic["cloud_acct"].notna()
+forensic["has_raw"]     = False  # raw_data not carried in agg_sample
+# Re-derive has_uid / has_product / has_raw via per-class probing.
+# Sample size keeps this fast.
+for cls in PRESENT_CLASSES[:5]:  # spot-check 5 classes
+    probe = _scan_class(cls, ["metadata", "raw_data"])
+    if probe.empty: continue
+    has_md_uid = probe["metadata"].apply(lambda d: isinstance(d, dict) and d.get("uid") is not None).mean() if "metadata" in probe else 0
+    if has_md_uid > 0.5:
+        forensic.loc[forensic["class_uid"] == cls, "has_uid"] = True
+        forensic.loc[forensic["class_uid"] == cls, "has_product"] = True
+    if "raw_data" in probe and probe["raw_data"].notna().mean() > 0.5:
+        forensic.loc[forensic["class_uid"] == cls, "has_raw"] = True
 
 print("Forensic field completeness across the dataset:")
 for c in ["has_time","has_uid","has_product","has_actor","has_source","has_raw"]:
@@ -504,7 +691,456 @@ print()
 print("Interpretation: anything below ~90% on has_actor or has_source means")
 print("that class of mapping needs work — the linter already gates on metadata + time.")
 """),
-    code("""# Summary — overall takeaways from the four sections.
+    md("""## §5 — Dimensional model (Dim / Fact star schema)
+
+Raw OCSF is fine for ad-hoc exploration. For repeatable analysis at
+scale, a **star schema** wins: dimension tables encode reusable
+entities (users, endpoints, classes, products), the fact table
+references them via foreign keys. Joins replace nested-dict
+extraction; aggregations are columnar-friendly.
+
+> **Memory note** — the full Parquet here is ~5 GB / ~20 GB in pandas.
+> The cells below sample 5 % for in-notebook work. Real production
+> runs would do this in DuckDB / Spark / Athena directly on the
+> partitions; this notebook demonstrates the *shape* of the schema.
+"""),
+    code("""# Reuse the 1% sample built in Phase A as the working set for the
+# star schema. Fields already extracted (actor_user, user_name, src_ip,
+# cloud_acct) so dim construction is straightforward.
+sample_df = agg_sample.copy()
+print(f"Working set: {len(sample_df):,} events")
+print(f"Memory:      {sample_df.memory_usage(deep=True).sum()/1024/1024:.1f} MB")
+"""),
+    code("""# dim_user — every distinct identity that appears as actor or user,
+# with first_seen / last_seen and primary user_type (User / Service / Token).
+actor_names = sample_df["actor_user"]
+user_names  = sample_df["user_name"]
+names = pd.Series(pd.concat([actor_names, user_names]).dropna().unique(), name="user_name")
+
+dim_user = pd.DataFrame({"user_name": names})
+dim_user["user_id"] = dim_user.index + 1
+# First/last seen — useful for "new user" features later.
+all_observations = pd.concat([
+    pd.DataFrame({"user_name": actor_names, "dt": sample_df["dt"]}),
+    pd.DataFrame({"user_name": user_names,  "dt": sample_df["dt"]}),
+]).dropna()
+firstlast = all_observations.groupby("user_name")["dt"].agg(["min","max"]).rename(columns={"min":"first_seen","max":"last_seen"})
+dim_user = dim_user.merge(firstlast, on="user_name", how="left")
+# Persona — derived from name shape (service accounts, tokens, real users).
+dim_user["user_type"] = np.where(
+    dim_user["user_name"].str.endswith("-svc-account@corp.example.com")
+    | dim_user["user_name"].str.contains("svc@", na=False)
+    | dim_user["user_name"].str.endswith("-svc"),
+    "Service",
+    np.where(dim_user["user_name"].str.startswith("CORP\\\\"), "Domain", "User"),
+)
+print(f"dim_user: {len(dim_user):,} rows")
+dim_user.head(8)
+"""),
+    code("""# dim_endpoint — every distinct source IP with its reputation bucket.
+def ip_bucket(ip):
+    if ip is None: return "unknown"
+    if ip.startswith("10.0."):            return "corp_internal"
+    if ip.startswith("192.0.2."):         return "corp_vpn"
+    if ip.startswith("203.0.113."):       return "cloud_egress"
+    if ip.startswith("198.51.100."):      return "partner"
+    if ip.startswith(("185.220.101.","45.155.205.","194.32.122.")):
+        return "known_bad"
+    return "other"
+
+unique_ips = pd.Series(sample_df["src_ip"].dropna().unique(), name="ip")
+dim_endpoint = pd.DataFrame({"ip": unique_ips})
+dim_endpoint["endpoint_id"] = dim_endpoint.index + 1
+dim_endpoint["reputation"]  = dim_endpoint["ip"].apply(ip_bucket)
+print(f"dim_endpoint: {len(dim_endpoint):,} rows")
+print()
+print("Reputation distribution:")
+print(dim_endpoint["reputation"].value_counts().to_string())
+"""),
+    code("""# dim_class — OCSF class catalog (we only have class_uid in the sample;
+# class_name comes from the original mapping).
+# Pull class_name via the agg_class_day rollup which never lost it.
+class_cols = sample_df[["class_uid"]].drop_duplicates().dropna()
+# Synthesize a class_name fallback per the OCSF catalog UIDs we know.
+OCSF_CLASS_NAMES = {1001:"File System Activity",1003:"Kernel Activity",1006:"Scheduled Job",
+    1007:"Process Activity",201001:"Registry Key Activity",2001:"Security Finding",
+    2002:"Vulnerability Finding",2004:"Detection Finding",3002:"Authentication",
+    3004:"Entity Management",4001:"Network Activity",4002:"HTTP Activity",
+    4003:"DNS Activity",4009:"Email Activity",5001:"Inventory Info",
+    5002:"Config State",5019:"Device Config State Change",6003:"API Activity",
+    7001:"Remediation Activity",8001:"Drone Flights Activity"}
+dim_class = class_cols.copy()
+dim_class["class_name"] = dim_class["class_uid"].map(OCSF_CLASS_NAMES).fillna("Unknown")
+dim_class["class_id"] = dim_class.reset_index(drop=True).index + 1
+dim_class = dim_class[["class_id","class_uid","class_name"]].sort_values("class_uid").reset_index(drop=True)
+print(f"dim_class: {len(dim_class):,} rows")
+dim_class
+"""),
+    code("""# dim_product — vendor + product (auto-derived from agg_auth / agg_api / agg_findings).
+# These aggs carry the product name we extracted in Phase A.
+prods = pd.concat([
+    agg_auth[["product"]].rename(columns={"product":"product_name"}),
+    agg_api[["product"]].rename(columns={"product":"product_name"}),
+    agg_findings[["product"]].rename(columns={"product":"product_name"}),
+], ignore_index=True).dropna().drop_duplicates()
+prods["vendor_name"] = None  # not separately extracted; can join in later
+dim_product = prods.reset_index(drop=True)
+dim_product["product_id"] = dim_product.index + 1
+dim_product = dim_product[["product_id","vendor_name","product_name"]]
+print(f"dim_product: {len(dim_product):,} rows")
+dim_product.head()
+"""),
+    code("""# fact_event — one row per event with FKs into the dimension tables.
+# Built from the 1% sample.
+chosen_user = sample_df["actor_user"].fillna(sample_df["user_name"])
+
+fact_event = pd.DataFrame({
+    "event_uid":   None,  # not carried in agg_sample (metadata struct was dropped)
+    "user_name":   chosen_user,
+    "ip":          sample_df["src_ip"],
+    "class_uid":   sample_df["class_uid"],
+    "product_name":None,  # likewise; could re-derive per (class, day)
+    "time":        sample_df["time"],
+    "dt":          sample_df["dt"],
+    "event_day":   sample_df["event_day"],
+    "severity_id": sample_df["severity_id"],
+    "status_id":   sample_df.get("status_id"),
+})
+# FK joins.
+fact_event = fact_event.merge(dim_user[["user_id","user_name"]], on="user_name", how="left")
+fact_event = fact_event.merge(dim_endpoint[["endpoint_id","ip"]], on="ip", how="left")
+fact_event = fact_event.merge(dim_class[["class_id","class_uid"]], on="class_uid", how="left")
+fact_event = fact_event.merge(dim_product[["product_id","product_name"]], on="product_name", how="left")
+
+# Final fact shape: FKs + measures + the time-dim cols (we don't materialise
+# dim_time as a separate table; the dt/event_day cols carry the same info).
+fact_event = fact_event[["event_uid","user_id","endpoint_id","class_id","product_id",
+                          "time","dt","event_day","severity_id","status_id"]]
+print(f"fact_event: {len(fact_event):,} rows")
+print(f"  · with user_id:     {fact_event['user_id'].notna().sum():,}")
+print(f"  · with endpoint_id: {fact_event['endpoint_id'].notna().sum():,}")
+print(f"  · with class_id:    {fact_event['class_id'].notna().sum():,}")
+fact_event.head()
+"""),
+    code("""# Persist the star schema to data/synthetic/star/ so subsequent runs of
+# this notebook (and any downstream tools) can load it directly.
+STAR_ROOT = DATA_ROOT.parent / "star"
+STAR_ROOT.mkdir(parents=True, exist_ok=True)
+for name, df in [
+    ("dim_user", dim_user), ("dim_endpoint", dim_endpoint),
+    ("dim_class", dim_class), ("dim_product", dim_product),
+    ("fact_event", fact_event),
+]:
+    out = STAR_ROOT / f"{name}.parquet"
+    df.to_parquet(out, compression="snappy", index=False)
+    print(f"  ✓ {out.relative_to(DATA_ROOT.parent.parent)}  ({len(df):,} rows, {out.stat().st_size/1024/1024:.1f} MB)")
+"""),
+
+    md("""## §6 — Cross-layer analysis
+
+Same business question answered three ways:
+1. Raw OCSF (Section 2 style) — flexible but verbose
+2. Star schema joins — cleaner code, easier to read
+3. Pre-aggregated rollups — sub-second for repeated queries
+
+The point: each layer is the right tool for a different type of work."""),
+    code("""# Q: "What's the top-10 user × class activity matrix?"
+#
+# (1) Raw — direct access on the (already extracted) sample DataFrame.
+#     Drop sample_df's class_name (if present) so the merge with dim_class
+#     doesn't produce class_name_x / class_name_y suffix columns.
+raw_src = sample_df.drop(columns=["class_name"], errors="ignore")
+raw_q = (
+    raw_src.dropna(subset=["actor_user"])
+           .merge(dim_class[["class_uid","class_name"]], on="class_uid", how="left")
+           .groupby(["actor_user","class_name"]).size()
+           .sort_values(ascending=False)
+           .head(10)
+)
+print("(1) Raw OCSF:")
+print(raw_q.to_string())
+"""),
+    code("""# (2) Star-schema join — much shorter SQL-like flow.
+star_q = (
+    fact_event
+    .merge(dim_user[["user_id","user_name"]], on="user_id")
+    .merge(dim_class[["class_id","class_name"]], on="class_id")
+    .groupby(["user_name","class_name"]).size()
+    .sort_values(ascending=False)
+    .head(10)
+)
+print("(2) Star schema:")
+print(star_q.to_string())
+"""),
+    code("""# (3) Pre-aggregated rollup — one-time build, instant subsequent queries.
+# In a real warehouse this is a materialised view. Here we cache it in
+# memory once and reuse for the rest of the notebook.
+roll_user_class = (
+    fact_event.merge(dim_user[["user_id","user_name"]], on="user_id")
+              .merge(dim_class[["class_id","class_name"]], on="class_id")
+              .groupby(["user_name","class_name"]).size()
+              .reset_index(name="events")
+)
+print(f"Rollup table: {len(roll_user_class):,} (user, class) tuples")
+print("Top-10 from the rollup:")
+print(roll_user_class.nlargest(10, "events").to_string(index=False))
+"""),
+    code("""# Risk-ranked user list — multi-metric combine. The kind of "watch list"
+# a SOC analyst would build to prioritise their inbox.
+risk = (
+    fact_event.merge(dim_user[["user_id","user_name","user_type"]], on="user_id")
+              .merge(dim_endpoint[["endpoint_id","reputation"]], on="endpoint_id", how="left")
+)
+risk_score = risk.groupby("user_name").agg(
+    total_events=("event_uid", "count"),
+    distinct_ips=("endpoint_id", "nunique"),
+    distinct_days=("event_day", "nunique"),
+    failed_events=("status_id", lambda s: (s != 1).sum()),
+    known_bad_ip_events=("reputation", lambda s: (s == "known_bad").sum()),
+    high_sev_events=("severity_id", lambda s: (s >= 4).sum()),
+)
+# Simple weighted sum — production would learn weights from labels.
+risk_score["risk_score"] = (
+    risk_score["known_bad_ip_events"] * 5.0
+    + risk_score["high_sev_events"]   * 3.0
+    + risk_score["failed_events"]     * 0.5
+    + risk_score["distinct_ips"]      * 0.3
+)
+print("Top-15 risky users by simple weighted score:")
+print(risk_score.sort_values("risk_score", ascending=False).head(15).to_string())
+"""),
+
+    md("""## §7 — SIEM feature engineering
+
+Aggregate behaviour into per `(user, day)` feature vectors. Built by
+joining the flat agg tables from Phase A — no struct extraction
+needed here, the work was done once upstream. The resulting matrix
+is the input the ML models in §8 train on.
+"""),
+    code("""# Per (user, day) features — the canonical UEBA feature vector.
+# Joined from agg_auth (auth class), agg_api (API class), agg_findings
+# (the three finding classes). Each agg is already flat.
+SENSITIVE_OPS = {"GetSecretValue","AssumeRole","AttachRolePolicy","DeleteAccessKey",
+                  "CreateAccessKey","PutObjectAcl","ListBuckets","DescribeInstances"}
+
+auth_feat = (
+    agg_auth.dropna(subset=["actor_user"])
+            .groupby(["actor_user","event_day"]).agg(
+                auth_events     =("time", "count"),
+                failed_auth     =("status_id", lambda s: (s != 1).sum()),
+                distinct_ips_auth=("src_ip", "nunique"),
+                off_hours_auth  =("hour", lambda h: ((h >= 22) | (h < 6)).sum()),
+            ).reset_index().rename(columns={"actor_user":"user_for_agg"})
+)
+
+api_feat = (
+    agg_api.dropna(subset=["actor_user"])
+           .groupby(["actor_user","event_day"]).agg(
+               api_events       =("time", "count"),
+               distinct_regions =("region", "nunique"),
+               sensitive_ops    =("operation", lambda s: s.isin(SENSITIVE_OPS).sum()),
+               off_hours_api    =("hour", lambda h: ((h >= 22) | (h < 6)).sum()),
+           ).reset_index().rename(columns={"actor_user":"user_for_agg"})
+)
+
+find_feat = (
+    agg_findings.dropna(subset=["actor_user"])
+                .groupby(["actor_user","event_day"]).agg(
+                    finding_events =("time", "count"),
+                    max_severity   =("severity_id", "max"),
+                    high_sev_events=("severity_id", lambda s: (s >= 4).sum()),
+                ).reset_index().rename(columns={"actor_user":"user_for_agg"})
+)
+
+# Known-bad-IP events per (user, day) — from auth.
+auth_with_bucket = agg_auth.copy()
+auth_with_bucket["ip_bucket"] = auth_with_bucket["src_ip"].apply(ip_bucket)
+kb = (auth_with_bucket[auth_with_bucket["ip_bucket"] == "known_bad"]
+      .dropna(subset=["actor_user"])
+      .groupby(["actor_user","event_day"]).size()
+      .reset_index(name="known_bad_ip_events")
+      .rename(columns={"actor_user":"user_for_agg"}))
+
+# Outer-join all the per-source per-(user, day) aggregates.
+user_day = (
+    auth_feat
+    .merge(api_feat,  on=["user_for_agg","event_day"], how="outer")
+    .merge(find_feat, on=["user_for_agg","event_day"], how="outer")
+    .merge(kb,        on=["user_for_agg","event_day"], how="left")
+    .fillna(0)
+)
+# Composite features.
+user_day["total_events"]      = user_day["auth_events"] + user_day["api_events"] + user_day["finding_events"]
+user_day["off_hours_events"]  = user_day["off_hours_auth"] + user_day["off_hours_api"]
+user_day["distinct_ips"]      = user_day["distinct_ips_auth"]
+user_day["distinct_classes"]  = (user_day["auth_events"] > 0).astype(int) + \\
+                                (user_day["api_events"] > 0).astype(int) + \\
+                                (user_day["finding_events"] > 0).astype(int)
+print(f"Per (user, day) feature matrix: {len(user_day):,} rows × {user_day.shape[1]} cols")
+user_day.head()
+"""),
+    code("""# Label the rows: which (user, day) tuples overlap the 5 injected
+# scenarios? This gives us ground truth so the supervised model in §8
+# has something to learn.
+INJECTED = pd.DataFrame([
+    # (user_for_agg, event_day, scenario)
+    ("carol@corp.example.com",       14, "brute_force"),
+    ("rogue-svc-account@corp.example.com", 10, "vault_denied_spike"),
+    ("compromised-svc@corp.example.com",     5, "lateral_movement"),
+    *[(u, 25, "mfa_fraud_cluster") for u in (
+        "alice@corp.example.com","bob@corp.example.com","ceo@corp.example.com",
+        "cfo@corp.example.com","cto@corp.example.com",
+    )],
+], columns=["user_for_agg", "day_offset", "scenario"])
+
+# Resolve day_offset → event_day string.
+base = pd.to_datetime(sorted(days)[0], utc=True)
+INJECTED["event_day"] = (base + pd.to_timedelta(INJECTED["day_offset"], unit="D")).dt.strftime("%Y-%m-%d")
+
+user_day = user_day.merge(
+    INJECTED[["user_for_agg","event_day","scenario"]],
+    on=["user_for_agg","event_day"], how="left",
+)
+user_day["is_incident"] = user_day["scenario"].notna().astype(int)
+print(f"Incident-labelled (user, day) tuples: {user_day['is_incident'].sum()} / {len(user_day):,}")
+print()
+print("Labelled rows (the ground truth ML will be evaluated against):")
+print(user_day[user_day["is_incident"] == 1][
+    ["user_for_agg","event_day","total_events","failed_auth","known_bad_ip_events","sensitive_ops","scenario"]
+].to_string(index=False))
+"""),
+    code("""# Feature-distribution sanity check — incident vs benign.
+features = ["total_events","distinct_ips","failed_auth","off_hours_events",
+            "sensitive_ops","known_bad_ip_events","high_sev_events","distinct_regions"]
+incident_rows  = user_day[user_day["is_incident"] == 1]
+benign_rows    = user_day[user_day["is_incident"] == 0]
+
+cmp = pd.DataFrame({
+    "incident_mean": incident_rows[features].mean(),
+    "benign_mean":   benign_rows[features].mean(),
+})
+cmp["ratio"] = cmp["incident_mean"] / cmp["benign_mean"].replace(0, np.nan)
+print("Mean feature values — incident vs benign rows:")
+print(cmp.round(2).to_string())
+print()
+print("Features with the largest incident/benign ratio are the ones the ML")
+print("model is most likely to lean on.")
+"""),
+
+    md("""## §8 — ML for SIEM
+
+Two complementary approaches:
+
+- **IsolationForest (unsupervised)** — no labels needed; flags any
+  `(user, day)` whose feature vector is far from the bulk. The honest
+  "we don't know what we're looking for" baseline.
+- **RandomForest (supervised)** — uses the injected-scenario labels.
+  Cheating in the sense that we know the answer; useful as a test of
+  whether the features carry enough signal to *be* learned.
+
+Evaluation against the 5 known incident scenarios."""),
+    code("""# Build the X matrix from the per (user, day) features above.
+from sklearn.ensemble import IsolationForest, RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import (
+    classification_report, confusion_matrix, precision_recall_curve, auc
+)
+
+FEATURE_COLS = ["total_events","distinct_ips","distinct_classes","distinct_regions",
+                "failed_auth","off_hours_events","sensitive_ops","high_sev_events",
+                "known_bad_ip_events"]
+X = user_day[FEATURE_COLS].fillna(0).astype(float).values
+y = user_day["is_incident"].values
+print(f"X shape: {X.shape}  ·  y positives: {y.sum()} / {len(y)}  ({y.mean()*100:.2f}%)")
+"""),
+    code("""# (1) IsolationForest — unsupervised anomaly score on the whole population.
+iso = IsolationForest(contamination=0.005, random_state=42, n_estimators=200)
+iso.fit(X)
+anomaly_score = -iso.score_samples(X)   # higher = more anomalous
+user_day["anomaly_score"] = anomaly_score
+
+# Recall: of the labelled incidents, how many were in the top-N anomalies?
+top_n = 30
+top_anomalies = user_day.sort_values("anomaly_score", ascending=False).head(top_n)
+caught = top_anomalies["is_incident"].sum()
+total_incidents = user_day["is_incident"].sum()
+print(f"IsolationForest top-{top_n} captures {caught}/{total_incidents} labelled incidents "
+      f"({caught/total_incidents*100:.0f}% recall) — purely from feature distance.")
+print()
+print("Top-15 anomalies (mix of true incidents + most-extreme benign rows):")
+display_cols = ["user_for_agg","event_day","total_events","failed_auth",
+                "known_bad_ip_events","sensitive_ops","anomaly_score","scenario"]
+print(top_anomalies[display_cols].head(15).to_string(index=False))
+"""),
+    code("""# (2) RandomForest classifier — supervised, with the injected-scenario labels.
+# Stratified split so the rare positives appear in both train and test.
+X_tr, X_te, y_tr, y_te = train_test_split(
+    X, y, test_size=0.3, random_state=42, stratify=y if y.sum() >= 2 else None,
+)
+rf = RandomForestClassifier(
+    n_estimators=300, class_weight="balanced", random_state=42, n_jobs=-1,
+)
+rf.fit(X_tr, y_tr)
+y_pred = rf.predict(X_te)
+y_proba = rf.predict_proba(X_te)[:, 1]
+
+print("Classification report (test set):")
+print(classification_report(y_te, y_pred, zero_division=0))
+print("Confusion matrix [[TN, FP], [FN, TP]]:")
+print(confusion_matrix(y_te, y_pred))
+"""),
+    code("""# Precision-recall — better metric than ROC for highly imbalanced data.
+prec, rec, _ = precision_recall_curve(y_te, y_proba)
+pr_auc = auc(rec, prec)
+
+fig, ax = plt.subplots(figsize=(7, 5))
+ax.plot(rec, prec, color="#0969da", linewidth=2, label=f"PR curve (AUC={pr_auc:.3f})")
+ax.set_xlabel("recall")
+ax.set_ylabel("precision")
+ax.set_title(f"Precision-Recall — incident classification (positives={y_te.sum()}/{len(y_te)})")
+ax.grid(alpha=0.3)
+ax.legend()
+plt.tight_layout()
+plt.show()
+"""),
+    code("""# Feature importance — which features did RandomForest learn to lean on?
+importances = pd.Series(rf.feature_importances_, index=FEATURE_COLS).sort_values()
+
+fig, ax = plt.subplots(figsize=(9, 5))
+importances.plot(kind="barh", ax=ax, color="#1f883d")
+ax.set_xlabel("importance")
+ax.set_title("RandomForest feature importance — incident classifier")
+plt.tight_layout()
+plt.show()
+print()
+print(importances.sort_values(ascending=False).to_string())
+"""),
+    code("""# Did the model catch the labelled incidents? Score every (user, day)
+# in the full sample and check whether the labelled rows rank in the top-N
+# by predicted probability.
+user_day["incident_proba"] = rf.predict_proba(X)[:, 1]
+ranked = user_day.sort_values("incident_proba", ascending=False)
+
+print("Position of each labelled incident in the ML-ranked candidate list:")
+for _, row in user_day[user_day["is_incident"] == 1].iterrows():
+    pos = ranked.index.get_loc(row.name) + 1
+    print(f"  rank {pos:>5}/{len(ranked):,}  {row['user_for_agg']:<45} {row['event_day']}  "
+          f"({row['scenario']}, proba={row['incident_proba']:.3f})")
+"""),
+    md("""## Wrap
+
+We've walked the full SIEM analyst loop on synthetic data:
+
+1. **Raw OCSF** for ad-hoc exploration (§1–§4).
+2. **Dim/Fact star schema** that makes joins explicit (§5).
+3. **Cross-layer queries** showing each layer's strength (§6).
+4. **Per-(user, day) features** with hand-labelled incidents (§7).
+5. **ML models** that surface the injected anomalies (§8).
+
+Same workflow scales to real ingest — swap pandas for DuckDB or
+Spark; everything else is the same shape.
+"""),
+    code("""# Summary — takeaways across all eight sections.
 print(f"Dataset:                      {total_rows:,} events / {total_bytes/1024/1024/1024:.2f} GB Parquet")
 print(f"OCSF classes covered:         {len(class_uids)}")
 print(f"Time window:                  {len(days)} days  ({days[0]} → {days[-1]})")
@@ -520,6 +1156,19 @@ print(f"  Severity distribution  : seen across {len(by_sev[by_sev>0])} levels")
 print(f"  MITRE techniques       : {tech_freq.size if tech_freq.size else 0} distinct")
 print(f"  Forensic completeness  : has_actor={forensic['has_actor'].mean()*100:.0f}%, "
       f"has_source={forensic['has_source'].mean()*100:.0f}%")
+print()
+print("Star schema (sampled 5%):")
+print(f"  dim_user               : {len(dim_user):>5,} rows")
+print(f"  dim_endpoint           : {len(dim_endpoint):>5,} rows")
+print(f"  dim_class              : {len(dim_class):>5,} rows")
+print(f"  dim_product            : {len(dim_product):>5,} rows")
+print(f"  fact_event             : {len(fact_event):>5,} rows")
+print()
+print("SIEM ML:")
+print(f"  Feature matrix shape   : {X.shape}")
+print(f"  Labelled incidents     : {y.sum()} / {len(y)} (sampled)")
+print(f"  IsolationForest top-30 : caught {caught}/{total_incidents} labelled incidents")
+print(f"  RandomForest PR-AUC    : {pr_auc:.3f}")
 """),
 ]
 
