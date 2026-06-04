@@ -48,6 +48,10 @@ _lint_*.classes.txt
 # Runtime audit / telemetry — per-install operational state, not source.
 audit/
 
+# Synthetic / generated data — produced by scripts/generate_synthetic_data.py
+# for notebook research. Multi-GB; regeneratable, never tracked.
+data/
+
 # Pinned OCSF schema versions — materialized lazily as git worktrees of the
 # ocsf-schema submodule (see scripts/setup_schema_versions.sh).
 ocsf-schema-*/

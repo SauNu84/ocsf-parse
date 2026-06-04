@@ -256,6 +256,28 @@ for the architecture: how the JSON DSL travels into a Spark UDF, a Flink
 streaming job, or Vector/Fluentbit agents, plus CI-gate patterns for
 schema-bump pre-flight and coverage drift.
 
+## SIEM research notebook
+
+For experimenting with the OCSF pipeline at realistic SOC volumes,
+there's a notebook + synthetic-data generator:
+
+```bash
+# Generate 5-10 GB of synthetic OCSF events across 30 days, partitioned by
+# class_uid + event_day (the AWS Security Lake layout). Includes 5 hand-
+# injected incident scenarios (brute force, GuardDuty chain, Vault denied,
+# lateral movement, MFA fraud).
+python3 scripts/generate_synthetic_data.py --scale 8 --out data/synthetic/ocsf
+
+# Open the 4-section research notebook:
+#   §1 capacity / volume       §2 threat hunting
+#   §3 detection-rule prototyping  §4 compliance evidence
+jupyter lab notebooks/siem_exploration.ipynb
+```
+
+`data/` is gitignored; the dataset is regenerable in ~10–50 minutes
+depending on `--scale`. See [`notebooks/README.md`](./notebooks/README.md)
+for full details.
+
 ## Repository layout
 
 ```
